@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useFoundation } from '../../context/FoundationContext';
-import { X, Lock, User, Eye, EyeOff } from 'lucide-react';
+import { X, Lock, User, Eye, EyeOff, Shield } from 'lucide-react';
 
 interface AdminLoginModalProps {
   isOpen: boolean;
@@ -9,8 +9,8 @@ interface AdminLoginModalProps {
 
 export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ isOpen, onClose }) => {
   const { kontenWeb, loginAdmin, setActiveView } = useFoundation();
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -23,7 +23,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ isOpen, onClos
     setErrorMsg('');
 
     try {
-      const res = await loginAdmin(username, password);
+      const res = await loginAdmin(username.trim(), password);
       setLoading(false);
       if (res.success) {
         onClose();
@@ -57,7 +57,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ isOpen, onClos
             alt="Logo"
             className="w-16 h-16 mx-auto mb-3 object-contain drop-shadow"
           />
-          <h3 className="text-xl font-black text-emerald-950">Login Sistem Admin</h3>
+          <h3 className="text-xl font-black text-emerald-950">Portal Login Pengurus</h3>
           <p className="text-xs text-slate-500 font-medium">
             Yayasan Bina Asri Kalimantan Barat
           </p>
@@ -79,9 +79,10 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ isOpen, onClos
               <input
                 type="text"
                 required
+                autoComplete="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="Masukkan username"
+                placeholder="Masukkan username Anda"
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-600 text-sm outline-none transition-all"
               />
             </div>
@@ -96,15 +97,17 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ isOpen, onClos
               <input
                 type={showPassword ? 'text' : 'password'}
                 required
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Masukkan password"
+                placeholder="Masukkan password Anda"
                 className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-600 text-sm outline-none transition-all"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -120,23 +123,9 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ isOpen, onClos
           </button>
         </form>
 
-        <div className="mt-5 p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-500 space-y-1.5">
-          <p className="font-bold text-slate-700 text-center">Kredensial Default Masuk:</p>
-          <div className="grid grid-cols-2 gap-2 text-[11px] pt-0.5">
-            <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900">
-              <span className="font-extrabold block text-emerald-950">👑 Super Admin:</span>
-              <p>User: <code className="font-bold">admin</code></p>
-              <p>Sandi: <code className="font-bold">admin123</code></p>
-            </div>
-            <div className="p-2 rounded-xl bg-sky-50 border border-sky-200 text-sky-900">
-              <span className="font-extrabold block text-sky-950">✍️ Editor Konten:</span>
-              <p>User: <code className="font-bold">editor</code></p>
-              <p>Sandi: <code className="font-bold">editor123</code></p>
-            </div>
-          </div>
-          <p className="text-[10px] text-slate-400 text-center pt-1">
-            Editor dapat mengedit konten web, database hanya diakses Super Admin.
-          </p>
+        <div className="mt-5 p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-center text-[11px] text-slate-500 flex items-center justify-center gap-2">
+          <Shield className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+          <span>Portal Akses Terlindungi &bull; Khusus Staf &amp; Pengurus Resmi</span>
         </div>
       </div>
     </div>

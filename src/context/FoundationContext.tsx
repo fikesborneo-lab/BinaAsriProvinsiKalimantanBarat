@@ -1502,8 +1502,31 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
           pesan: ps.pesan,
         }));
         const { error } = await supabase.from('pesan').upsert(rows);
-        if (error) throw new Error(`Tabel pesan: ${error.message}`);
+        if (error) {
+          const isFetchErr = error.message?.includes('fetch') || error.message?.includes('network');
+          throw new Error(isFetchErr ? 'Koneksi ke Supabase gagal (Failed to fetch). Proyek Supabase kemungkinan sedang PAUSED di app.supabase.com atau URL tidak terjangkau.' : `Tabel pesan: ${error.message}`);
+        }
         counts['pesan'] = rows.length;
+      }
+
+      // 8. App Users (RBAC)
+      if (users.length > 0) {
+        const userRows = users.map((u) => ({
+          id: u.id,
+          username: u.username,
+          password: u.password,
+          nama: u.nama,
+          role: u.role,
+          email: u.email || '',
+          status: u.status,
+          created_at: u.createdAt,
+        }));
+        try {
+          const { error: errUsers } = await supabase.from('app_users').upsert(userRows);
+          if (!errUsers) {
+            counts['app_users'] = userRows.length;
+          }
+        } catch {}
       }
 
       return {
@@ -1512,9 +1535,13 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
         counts,
       };
     } catch (err: any) {
+      const msg = err.message || '';
+      const isFetchErr = msg.includes('fetch') || msg.includes('network');
       return {
         success: false,
-        message: err.message || 'Gagal sinkronisasi ke Supabase',
+        message: isFetchErr
+          ? 'Koneksi ke Supabase gagal (Failed to fetch). Kemungkinan besar proyek Supabase Anda sedang PAUSED (Tertidur) di dashboard Supabase atau URL salah.'
+          : (msg || 'Gagal sinkronisasi ke Supabase'),
       };
     }
   };

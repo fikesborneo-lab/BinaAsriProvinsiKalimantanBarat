@@ -1057,20 +1057,61 @@ export async function setAdminPassword(newPassword: string): Promise<void> {
 }
 
 // 10. Sync Local Foundation Data to Supabase (Push)
-export async function syncLocalToSupabase(): Promise<{
+export async function syncLocalToSupabase(
+  overrideUrl?: string,
+  overrideKey?: string,
+  overrideData?: Partial<DatabaseSchema>
+): Promise<{
   success: boolean;
   message: string;
   insertedCounts?: Record<string, number>;
+  diagnostic?: string;
 }> {
-  const supabase = getSupabaseClient();
+  if (overrideUrl && overrideKey) {
+    await saveSupabaseCredentials(overrideUrl, overrideKey);
+  }
+
+  // Pre-check connection and diagnostic status
+  const testRes = await (await import('../lib/supabase.ts')).testSupabaseConnection(overrideUrl, overrideKey);
+  if (!testRes.connected) {
+    return {
+      success: false,
+      message: testRes.message,
+      diagnostic: testRes.diagnostic,
+    };
+  }
+
+  const supabase = overrideUrl && overrideKey
+    ? (await import('@supabase/supabase-js')).createClient(
+        (await import('../lib/supabase.ts')).sanitizeSupabaseUrl(overrideUrl),
+        overrideKey.trim(),
+        { auth: { persistSession: false, autoRefreshToken: false } }
+      )
+    : getSupabaseClient();
+
   if (!supabase) {
     return {
       success: false,
-      message: 'Supabase client belum dikonfigurasi.',
+      message: 'Supabase client belum dikonfigurasi. Harap masukkan SUPABASE_URL dan API Key.',
+      diagnostic: 'invalid_url',
     };
   }
 
   const db = ensureDbLoaded();
+
+  // If client provided fresh data payload, merge it into db
+  if (overrideData) {
+    if (overrideData.kontenWeb) db.kontenWeb = { ...db.kontenWeb, ...overrideData.kontenWeb };
+    if (Array.isArray(overrideData.berita) && overrideData.berita.length > 0) db.berita = overrideData.berita;
+    if (Array.isArray(overrideData.program) && overrideData.program.length > 0) db.program = overrideData.program;
+    if (Array.isArray(overrideData.galeri) && overrideData.galeri.length > 0) db.galeri = overrideData.galeri;
+    if (Array.isArray(overrideData.pengurus) && overrideData.pengurus.length > 0) db.pengurus = overrideData.pengurus;
+    if (Array.isArray(overrideData.banks) && overrideData.banks.length > 0) db.banks = overrideData.banks;
+    if (Array.isArray(overrideData.pesan) && overrideData.pesan.length > 0) db.pesan = overrideData.pesan;
+    if (Array.isArray(overrideData.users) && overrideData.users.length > 0) db.users = overrideData.users;
+    persistDbToFile(db);
+  }
+
   const counts: Record<string, number> = {};
 
   try {

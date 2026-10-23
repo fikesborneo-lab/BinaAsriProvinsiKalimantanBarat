@@ -40,6 +40,7 @@ import {
   Shield,
   Eye,
   EyeOff,
+  AlertTriangle,
   X
 } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
@@ -177,6 +178,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     url?: string;
     tableCounts?: Record<string, number>;
     missingTables?: string[];
+    diagnostic?: string;
   } | null>(null);
   const [isSyncingSupabase, setIsSyncingSupabase] = useState(false);
   const [sqlCopied, setSqlCopied] = useState(false);
@@ -323,12 +325,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         const data = await res.json();
         setSupabaseStatus({
           loading: false,
-          isConfigured: Boolean(data.isConfigured),
+          isConfigured: Boolean(data.isConfigured || (urlToTest && keyToTest)),
           connected: Boolean(data.connected),
           message: data.message || 'Status Supabase dicek.',
           url: data.url || (urlToTest ? sanitizeSupabaseUrl(urlToTest) : ''),
           tableCounts: data.tableCounts || {},
           missingTables: data.missingTables || [],
+          diagnostic: data.diagnostic,
         });
         return;
       }
@@ -345,6 +348,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         url: urlToTest ? sanitizeSupabaseUrl(urlToTest) : '',
         tableCounts: testResult.tableCounts || {},
         missingTables: testResult.missingTables || [],
+        diagnostic: testResult.diagnostic,
       });
     } catch (err: any) {
       setSupabaseStatus({
@@ -352,6 +356,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         isConfigured: false,
         connected: false,
         message: `Gagal memeriksa koneksi: ${err.message}`,
+        diagnostic: 'network_error',
       });
     }
   };
@@ -401,9 +406,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     let success = false;
     let msg = '';
 
-    // 1. Try server sync endpoint
+    const cleanUrl = sanitizeSupabaseUrl(supabaseInputUrl);
+    const cleanKey = supabaseInputKey.trim();
+
+    // 1. Try server sync endpoint first (runs in Node.js, free of browser CORS limitations)
     try {
-      const res = await fetch('/api/supabase/sync', { method: 'POST' });
+      const res = await fetch('/api/supabase/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: cleanUrl,
+          key: cleanKey,
+          data: {
+            kontenWeb,
+            berita,
+            program,
+            galeri,
+            pengurus,
+            banks,
+            pesan,
+            users,
+          },
+        }),
+      });
       const isJson = res.headers.get('content-type')?.includes('application/json');
       if (res.ok && isJson) {
         const data = await res.json();
@@ -414,7 +439,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           msg = data.message;
         }
       }
-    } catch {}
+    } catch (err: any) {
+      console.warn('Server sync note:', err);
+    }
 
     // 2. Client-side fallback sync (for static Vercel or when backend is unavailable)
     if (!success) {
@@ -430,9 +457,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setIsSyncingSupabase(false);
     if (success) {
       showToast(msg || 'Seluruh data Yayasan berhasil disinkronkan ke Supabase!', 'success');
-      await fetchSupabaseStatus();
+      await fetchSupabaseStatus(cleanUrl, cleanKey);
     } else {
       showToast(msg || 'Gagal sinkronisasi data ke Supabase.', 'error');
+      // Refresh status to reflect exact diagnostic state
+      await fetchSupabaseStatus(cleanUrl, cleanKey);
     }
   };
 
@@ -2128,7 +2157,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             {/* Status Message Banner if present */}
             {supabaseStatus && (
               <div
-                className={`p-4 rounded-2xl border flex items-center justify-between gap-4 ${
+                className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
                   supabaseStatus.connected
                     ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
                     : supabaseStatus.isConfigured
@@ -2136,12 +2165,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     : 'bg-slate-50 border-slate-200 text-slate-700'
                 }`}
               >
-                <div className="flex items-center gap-3">
-                  <Database className="w-5 h-5 shrink-0" />
+                <div className="flex items-start gap-3">
+                  <Database className="w-5 h-5 shrink-0 mt-0.5" />
                   <div className="text-xs">
-                    <p className="font-bold">{supabaseStatus.message}</p>
+                    <p className="font-bold text-sm">{supabaseStatus.message}</p>
                     {supabaseStatus.url && (
-                      <p className="text-[11px] opacity-80 mt-0.5">Endpoint: {supabaseStatus.url}</p>
+                      <p className="text-[11px] opacity-80 mt-0.5 font-mono">Endpoint: {supabaseStatus.url}</p>
                     )}
                   </div>
                 </div>
@@ -2150,12 +2179,78 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     type="button"
                     onClick={handleSyncToSupabase}
                     disabled={isSyncingSupabase}
-                    className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 shadow transition-all shrink-0 disabled:opacity-50"
+                    className="px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow transition-all shrink-0 disabled:opacity-50"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSupabase ? 'animate-spin' : ''}`} />
                     <span>{isSyncingSupabase ? 'Menyinkronkan...' : 'Sinkronkan Data Sekarang'}</span>
                   </button>
                 )}
+              </div>
+            )}
+
+            {/* Diagnostic Troubleshooting Box if connection is not fully connected */}
+            {supabaseStatus && !supabaseStatus.connected && (
+              <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-50 via-rose-50/50 to-orange-50 border border-amber-300 text-amber-950 space-y-3 shadow-sm">
+                <div className="flex items-center gap-2 font-black text-sm text-amber-950">
+                  <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0" />
+                  <span>Panduan Mengatasi Error Koneksi &amp; Sinkronisasi Supabase</span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1 text-xs">
+                  <div className="p-3.5 rounded-xl bg-white border border-amber-200/90 shadow-xs flex flex-col justify-between">
+                    <div>
+                      <strong className="block font-bold text-amber-950 mb-1">
+                        1. Proyek Supabase Paused (Tertidur)?
+                      </strong>
+                      <p className="text-slate-600 leading-relaxed text-[11px]">
+                        Penyebab utama pesan <code>Failed to fetch</code>: Supabase Free Tier otomatis mem-pause proyek jika tidak aktif 7 hari.
+                      </p>
+                    </div>
+                    <div className="mt-2.5 pt-2 border-t border-slate-100">
+                      <a
+                        href="https://supabase.com/dashboard"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 hover:text-emerald-700 underline"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        <span>Buka Dashboard &amp; Klik "Restore Project"</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-white border border-amber-200/90 shadow-xs flex flex-col justify-between">
+                    <div>
+                      <strong className="block font-bold text-amber-950 mb-1">
+                        2. Jalankan Skrip SQL di Supabase
+                      </strong>
+                      <p className="text-slate-600 leading-relaxed text-[11px]">
+                        Tabel database belum dibuat di Supabase Anda. Anda wajib menjalankan skrip SQL di menu SQL Editor agar tabel tersedia.
+                      </p>
+                    </div>
+                    <div className="mt-2.5 pt-2 border-t border-slate-100">
+                      <span className="text-[11px] font-bold text-slate-700">
+                        Gunakan tombol "Salin Skrip SQL Lengkap" di bawah
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-white border border-amber-200/90 shadow-xs flex flex-col justify-between">
+                    <div>
+                      <strong className="block font-bold text-amber-950 mb-1">
+                        3. Periksa URL &amp; API Key
+                      </strong>
+                      <p className="text-slate-600 leading-relaxed text-[11px]">
+                        Pastikan URL berformat <code>https://&lt;id-proyek&gt;.supabase.co</code> dan API Key menggunakan <strong>anon public key</strong> (diawali <code>eyJ...</code>).
+                      </p>
+                    </div>
+                    <div className="mt-2.5 pt-2 border-t border-slate-100">
+                      <span className="text-[10px] text-slate-500">
+                        Project Settings &gt; API
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -2190,51 +2285,113 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
                   <span className="text-[11px] font-semibold text-slate-500 block mb-1">Berita &amp; Artikel</span>
-                  <strong className="text-lg font-black text-slate-900">
-                    {supabaseStatus?.tableCounts?.['berita'] ?? berita.length}
-                  </strong>
+                  {supabaseStatus?.tableCounts?.['berita'] !== undefined && supabaseStatus.tableCounts['berita'] < 0 ? (
+                    <span className="inline-block text-[11px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                      Perlu Skrip SQL
+                    </span>
+                  ) : (
+                    <strong className="text-lg font-black text-slate-900">
+                      {supabaseStatus?.tableCounts?.['berita'] ?? berita.length}
+                    </strong>
+                  )}
                   <span className="text-[10px] text-slate-400 block mt-0.5">tabel: berita</span>
                 </div>
+
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
                   <span className="text-[11px] font-semibold text-slate-500 block mb-1">Program Kerja</span>
-                  <strong className="text-lg font-black text-slate-900">
-                    {supabaseStatus?.tableCounts?.['programs'] ?? program.length}
-                  </strong>
+                  {supabaseStatus?.tableCounts?.['programs'] !== undefined && supabaseStatus.tableCounts['programs'] < 0 ? (
+                    <span className="inline-block text-[11px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                      Perlu Skrip SQL
+                    </span>
+                  ) : (
+                    <strong className="text-lg font-black text-slate-900">
+                      {supabaseStatus?.tableCounts?.['programs'] ?? program.length}
+                    </strong>
+                  )}
                   <span className="text-[10px] text-slate-400 block mt-0.5">tabel: programs</span>
                 </div>
+
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
                   <span className="text-[11px] font-semibold text-slate-500 block mb-1">Galeri Foto</span>
-                  <strong className="text-lg font-black text-slate-900">
-                    {supabaseStatus?.tableCounts?.['galeri'] ?? galeri.length}
-                  </strong>
+                  {supabaseStatus?.tableCounts?.['galeri'] !== undefined && supabaseStatus.tableCounts['galeri'] < 0 ? (
+                    <span className="inline-block text-[11px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                      Perlu Skrip SQL
+                    </span>
+                  ) : (
+                    <strong className="text-lg font-black text-slate-900">
+                      {supabaseStatus?.tableCounts?.['galeri'] ?? galeri.length}
+                    </strong>
+                  )}
                   <span className="text-[10px] text-slate-400 block mt-0.5">tabel: galeri</span>
                 </div>
+
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
                   <span className="text-[11px] font-semibold text-slate-500 block mb-1">Pengurus &amp; Cabang</span>
-                  <strong className="text-lg font-black text-slate-900">
-                    {supabaseStatus?.tableCounts?.['pengurus'] ?? pengurus.length}
-                  </strong>
+                  {supabaseStatus?.tableCounts?.['pengurus'] !== undefined && supabaseStatus.tableCounts['pengurus'] < 0 ? (
+                    <span className="inline-block text-[11px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                      Perlu Skrip SQL
+                    </span>
+                  ) : (
+                    <strong className="text-lg font-black text-slate-900">
+                      {supabaseStatus?.tableCounts?.['pengurus'] ?? pengurus.length}
+                    </strong>
+                  )}
                   <span className="text-[10px] text-slate-400 block mt-0.5">tabel: pengurus</span>
                 </div>
+
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
                   <span className="text-[11px] font-semibold text-slate-500 block mb-1">Rekening Donasi</span>
-                  <strong className="text-lg font-black text-slate-900">
-                    {supabaseStatus?.tableCounts?.['banks'] ?? banks.length}
-                  </strong>
+                  {supabaseStatus?.tableCounts?.['banks'] !== undefined && supabaseStatus.tableCounts['banks'] < 0 ? (
+                    <span className="inline-block text-[11px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                      Perlu Skrip SQL
+                    </span>
+                  ) : (
+                    <strong className="text-lg font-black text-slate-900">
+                      {supabaseStatus?.tableCounts?.['banks'] ?? banks.length}
+                    </strong>
+                  )}
                   <span className="text-[10px] text-slate-400 block mt-0.5">tabel: banks</span>
                 </div>
+
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
                   <span className="text-[11px] font-semibold text-slate-500 block mb-1">Pesan Pengunjung</span>
-                  <strong className="text-lg font-black text-slate-900">
-                    {supabaseStatus?.tableCounts?.['pesan'] ?? pesan.length}
-                  </strong>
+                  {supabaseStatus?.tableCounts?.['pesan'] !== undefined && supabaseStatus.tableCounts['pesan'] < 0 ? (
+                    <span className="inline-block text-[11px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                      Perlu Skrip SQL
+                    </span>
+                  ) : (
+                    <strong className="text-lg font-black text-slate-900">
+                      {supabaseStatus?.tableCounts?.['pesan'] ?? pesan.length}
+                    </strong>
+                  )}
                   <span className="text-[10px] text-slate-400 block mt-0.5">tabel: pesan</span>
                 </div>
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center col-span-2">
+
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
+                  <span className="text-[11px] font-semibold text-slate-500 block mb-1">Pengguna Website</span>
+                  {supabaseStatus?.tableCounts?.['app_users'] !== undefined && supabaseStatus.tableCounts['app_users'] < 0 ? (
+                    <span className="inline-block text-[11px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                      Perlu Skrip SQL
+                    </span>
+                  ) : (
+                    <strong className="text-lg font-black text-slate-900">
+                      {supabaseStatus?.tableCounts?.['app_users'] ?? users.length}
+                    </strong>
+                  )}
+                  <span className="text-[10px] text-slate-400 block mt-0.5">tabel: app_users</span>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
                   <span className="text-[11px] font-semibold text-slate-500 block mb-1">Pengaturan Teks Halaman</span>
-                  <strong className="text-lg font-black text-slate-900">
-                    {supabaseStatus?.tableCounts?.['site_content'] ?? Object.keys(kontenWeb).length} Butir
-                  </strong>
+                  {supabaseStatus?.tableCounts?.['site_content'] !== undefined && supabaseStatus.tableCounts['site_content'] < 0 ? (
+                    <span className="inline-block text-[11px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                      Perlu Skrip SQL
+                    </span>
+                  ) : (
+                    <strong className="text-lg font-black text-slate-900">
+                      {supabaseStatus?.tableCounts?.['site_content'] ?? Object.keys(kontenWeb).length} Butir
+                    </strong>
+                  )}
                   <span className="text-[10px] text-slate-400 block mt-0.5">tabel: site_content</span>
                 </div>
               </div>
@@ -2242,22 +2399,212 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             {/* SQL Script Copier Card */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-              <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between flex-wrap gap-3">
                 <div>
-                  <h4 className="font-extrabold text-sm text-slate-900">
-                    ⚡ Skrip SQL Pembuatan Tabel &amp; Hak Akses Supabase (DDL)
+                  <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                    <Database className="w-4 h-4 text-emerald-700" />
+                    <span>⚡ Skrip SQL Pembuatan Tabel &amp; Hak Akses Supabase (DDL)</span>
                   </h4>
                   <p className="text-xs text-slate-500 mt-0.5">
                     Salin skrip SQL ini lalu jalankan di menu <strong>SQL Editor</strong> di dashboard Supabase Anda.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const sql = `-- ====================================================================
--- SKEMA DATABASE SUPABASE RESMI: YAYASAN BINA ASRI KALIMANTAN BARAT
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const sqlAll = `BEGIN;
+
 -- ====================================================================
+-- SKEMA DATABASE RESMI: YAYASAN BINA ASRI KALIMANTAN BARAT
+-- ====================================================================
+
+-- 1. TABEL KONTEN & HALAMAN
 CREATE TABLE IF NOT EXISTS public.site_content (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 2. TABEL BERITA & ARTIKEL
+CREATE TABLE IF NOT EXISTS public.berita (
+  id BIGINT PRIMARY KEY,
+  judul TEXT NOT NULL,
+  tanggal TEXT NOT NULL,
+  raw_tanggal TEXT,
+  kategori TEXT NOT NULL DEFAULT 'Sosial',
+  ringkasan TEXT NOT NULL,
+  konten TEXT NOT NULL,
+  gambar TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 3. TABEL PROGRAM KERJA
+CREATE TABLE IF NOT EXISTS public.programs (
+  id BIGINT PRIMARY KEY,
+  nama TEXT NOT NULL,
+  deskripsi TEXT NOT NULL,
+  target TEXT NOT NULL,
+  progress INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 4. TABEL GALERI FOTO
+CREATE TABLE IF NOT EXISTS public.galeri (
+  id BIGINT PRIMARY KEY,
+  judul TEXT NOT NULL,
+  gambar TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 5. TABEL PENGURUS & CABANG DAERAH
+CREATE TABLE IF NOT EXISTS public.pengurus (
+  id BIGINT PRIMARY KEY,
+  nama TEXT NOT NULL,
+  jabatan TEXT NOT NULL,
+  foto TEXT NOT NULL,
+  cabang TEXT NOT NULL DEFAULT 'Pusat / SR Kalbar',
+  kontak TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 6. TABEL REKENING BANK DONASI
+CREATE TABLE IF NOT EXISTS public.banks (
+  id BIGINT PRIMARY KEY,
+  bank TEXT NOT NULL,
+  badge TEXT NOT NULL DEFAULT 'Daerah',
+  norek TEXT NOT NULL,
+  an TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 7. TABEL PESAN MASUK PENGUNJUNG
+CREATE TABLE IF NOT EXISTS public.pesan (
+  id BIGINT PRIMARY KEY,
+  timestamp TEXT NOT NULL,
+  nama TEXT NOT NULL,
+  email TEXT,
+  telepon TEXT NOT NULL,
+  subjek TEXT NOT NULL,
+  pesan TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 8. TABEL PENGATURAN ADMIN
+CREATE TABLE IF NOT EXISTS public.admin_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 9. TABEL PENGGUNA & HAK AKSES (RBAC)
+CREATE TABLE IF NOT EXISTS public.app_users (
+  id TEXT PRIMARY KEY,
+  username TEXT UNIQUE NOT NULL,
+  password TEXT NOT NULL,
+  nama TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'editor',
+  email TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  last_login TIMESTAMP WITH TIME ZONE
+);
+
+-- 10. HAK AKSES PERMISSIONS
+GRANT ALL ON TABLE public.site_content TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.berita TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.programs TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.galeri TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.pengurus TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.banks TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.pesan TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.admin_settings TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.app_users TO anon, authenticated, service_role;
+
+-- 11. ROW LEVEL SECURITY (RLS) POLICIES
+ALTER TABLE public.site_content ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.berita ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.programs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.galeri ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pengurus ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.banks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pesan ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.app_users ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public access site_content" ON public.site_content;
+DROP POLICY IF EXISTS "Public access berita" ON public.berita;
+DROP POLICY IF EXISTS "Public access programs" ON public.programs;
+DROP POLICY IF EXISTS "Public access galeri" ON public.galeri;
+DROP POLICY IF EXISTS "Public access pengurus" ON public.pengurus;
+DROP POLICY IF EXISTS "Public access banks" ON public.banks;
+DROP POLICY IF EXISTS "Public access pesan" ON public.pesan;
+DROP POLICY IF EXISTS "Public access admin_settings" ON public.admin_settings;
+DROP POLICY IF EXISTS "Public access app_users" ON public.app_users;
+
+CREATE POLICY "Public access site_content" ON public.site_content FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access berita" ON public.berita FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access programs" ON public.programs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access galeri" ON public.galeri FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access pengurus" ON public.pengurus FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access banks" ON public.banks FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access pesan" ON public.pesan FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access admin_settings" ON public.admin_settings FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access app_users" ON public.app_users FOR ALL USING (true) WITH CHECK (true);
+
+-- 12. DATA AWAL AKUN & SANDI
+INSERT INTO public.admin_settings (key, value) VALUES ('admin_password', 'admin123') ON CONFLICT (key) DO NOTHING;
+
+INSERT INTO public.app_users (id, username, password, nama, role, email, status)
+VALUES 
+  ('usr_superadmin_01', 'admin', 'admin123', 'Super Administrator Yayasan', 'superadmin', 'admin@binaasrikalbar.org', 'active'),
+  ('usr_editor_01', 'editor', 'editor123', 'Staf Editor Konten Web', 'editor', 'redaksi@binaasrikalbar.org', 'active')
+ON CONFLICT (username) DO NOTHING;
+
+COMMIT;`;
+                      navigator.clipboard.writeText(sqlAll).then(() => {
+                        setSqlCopied(true);
+                        showToast('Skrip SQL Lengkap berhasil disalin!', 'success');
+                        setTimeout(() => setSqlCopied(false), 2500);
+                      });
+                    }}
+                    className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-1.5 shadow"
+                  >
+                    {sqlCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                    <span>{sqlCopied ? 'Tersalin ke Clipboard!' : 'Salin Skrip SQL Lengkap'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Troubleshooting Warning for 'Only singular query allowed' */}
+              <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs space-y-2">
+                <div className="flex items-center gap-2 font-bold text-amber-900">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Mengatasi Error: "Only singular query allowed"</span>
+                </div>
+                <p className="leading-relaxed">
+                  Pemberitahuan <code>Error: Only singular query allowed</code> muncul jika skrip ditempelkan ke kotak <strong>"Ask Supabase AI"</strong> (kolom chat AI di samping/bawah). Supabase AI hanya menerima pertanyaan teks singkat, bukan kumpulan skrip database.
+                </p>
+                <div className="p-3 bg-white/90 rounded-lg border border-amber-200 text-[11px] space-y-1">
+                  <p className="font-bold text-slate-800">✅ Cara Benar Menjalankan di Supabase:</p>
+                  <ol className="list-decimal list-inside space-y-0.5 text-slate-700 pl-1">
+                    <li>Buka menu <strong>SQL Editor</strong> (ikon terminal <code>&gt;_</code> di sidebar kiri Supabase).</li>
+                    <li>Klik tombol <strong>"+ New query"</strong> di bagian atas.</li>
+                    <li>Tempelkan (*paste*) skrip langsung di <strong>lembar kerja kode utama</strong> (area editor hitam/putih dengan nomor baris 1, 2, 3...), <u>bukan</u> di kotak chat AI.</li>
+                    <li>Klik tombol hijau <strong>"Run"</strong> (atau tekan <code>Ctrl + Enter</code>).</li>
+                  </ol>
+                </div>
+              </div>
+
+              {/* Modular Copy Buttons if user prefers running part by part */}
+              <div className="space-y-1.5">
+                <p className="text-xs font-bold text-slate-700">Atau Salin Berdasarkan Bagian (Jika Ingin Dijalankan Terpisah):</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const part1 = `CREATE TABLE IF NOT EXISTS public.site_content (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
@@ -2327,7 +2674,6 @@ CREATE TABLE IF NOT EXISTS public.admin_settings (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- TABEL PENGGUNA WEBSITE & HAK AKSES (RBAC: SUPER ADMIN & EDITOR)
 CREATE TABLE IF NOT EXISTS public.app_users (
   id TEXT PRIMARY KEY,
   username TEXT UNIQUE NOT NULL,
@@ -2338,10 +2684,20 @@ CREATE TABLE IF NOT EXISTS public.app_users (
   status TEXT NOT NULL DEFAULT 'active',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   last_login TIMESTAMP WITH TIME ZONE
-);
+);`;
+                      navigator.clipboard.writeText(part1).then(() => {
+                        showToast('Bagian 1 (Buat Tabel) berhasil disalin!', 'success');
+                      });
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-200 transition-colors"
+                  >
+                    1. Salin Bagian 1: Buat Tabel
+                  </button>
 
--- GRANT PERMISSIONS TO ANON, AUTHENTICATED, & SERVICE_ROLE
-GRANT ALL ON TABLE public.site_content TO anon, authenticated, service_role;
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const part2 = `GRANT ALL ON TABLE public.site_content TO anon, authenticated, service_role;
 GRANT ALL ON TABLE public.berita TO anon, authenticated, service_role;
 GRANT ALL ON TABLE public.programs TO anon, authenticated, service_role;
 GRANT ALL ON TABLE public.galeri TO anon, authenticated, service_role;
@@ -2351,7 +2707,6 @@ GRANT ALL ON TABLE public.pesan TO anon, authenticated, service_role;
 GRANT ALL ON TABLE public.admin_settings TO anon, authenticated, service_role;
 GRANT ALL ON TABLE public.app_users TO anon, authenticated, service_role;
 
--- ROW LEVEL SECURITY (RLS) POLICIES
 ALTER TABLE public.site_content ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.berita ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.programs ENABLE ROW LEVEL SECURITY;
@@ -2380,51 +2735,60 @@ CREATE POLICY "Public access pengurus" ON public.pengurus FOR ALL USING (true) W
 CREATE POLICY "Public access banks" ON public.banks FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public access pesan" ON public.pesan FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public access admin_settings" ON public.admin_settings FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public access app_users" ON public.app_users FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access app_users" ON public.app_users FOR ALL USING (true) WITH CHECK (true);`;
+                      navigator.clipboard.writeText(part2).then(() => {
+                        showToast('Bagian 2 (Hak Akses & RLS) berhasil disalin!', 'success');
+                      });
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-800 text-xs font-bold border border-sky-200 transition-colors"
+                  >
+                    2. Salin Bagian 2: Izin Akses &amp; RLS
+                  </button>
 
-INSERT INTO public.admin_settings (key, value) VALUES ('admin_password', 'admin123') ON CONFLICT (key) DO NOTHING;
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const part3 = `INSERT INTO public.admin_settings (key, value) VALUES ('admin_password', 'admin123') ON CONFLICT (key) DO NOTHING;
 
 INSERT INTO public.app_users (id, username, password, nama, role, email, status)
 VALUES 
   ('usr_superadmin_01', 'admin', 'admin123', 'Super Administrator Yayasan', 'superadmin', 'admin@binaasrikalbar.org', 'active'),
   ('usr_editor_01', 'editor', 'editor123', 'Staf Editor Konten Web', 'editor', 'redaksi@binaasrikalbar.org', 'active')
 ON CONFLICT (username) DO NOTHING;`;
-                    navigator.clipboard.writeText(sql).then(() => {
-                      setSqlCopied(true);
-                      showToast('Skrip SQL Supabase berhasil disalin!', 'success');
-                      setTimeout(() => setSqlCopied(false), 2500);
-                    });
-                  }}
-                  className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-1.5 shadow"
-                >
-                  {sqlCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                  <span>{sqlCopied ? 'Tersalin ke Clipboard!' : 'Salin Skrip SQL Lengkap'}</span>
-                </button>
+                      navigator.clipboard.writeText(part3).then(() => {
+                        showToast('Bagian 3 (Akun Awal) berhasil disalin!', 'success');
+                      });
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold border border-amber-200 transition-colors"
+                  >
+                    3. Salin Bagian 3: Akun Awal
+                  </button>
+                </div>
               </div>
 
               <div className="bg-slate-900 text-emerald-300 p-4 rounded-xl font-mono text-xs overflow-x-auto max-h-48 border border-slate-800">
-                <pre>{`-- Salin skrip lengkap ini dan jalankan di SQL Editor Supabase
-CREATE TABLE IF NOT EXISTS public.site_content (key TEXT PRIMARY KEY, value TEXT NOT NULL, ...);
-CREATE TABLE IF NOT EXISTS public.berita (id BIGINT PRIMARY KEY, judul TEXT NOT NULL, ...);
-CREATE TABLE IF NOT EXISTS public.programs (id BIGINT PRIMARY KEY, nama TEXT NOT NULL, ...);
-CREATE TABLE IF NOT EXISTS public.galeri (id BIGINT PRIMARY KEY, judul TEXT NOT NULL, ...);
-CREATE TABLE IF NOT EXISTS public.pengurus (id BIGINT PRIMARY KEY, nama TEXT NOT NULL, ...);
-CREATE TABLE IF NOT EXISTS public.banks (id BIGINT PRIMARY KEY, bank TEXT NOT NULL, ...);
-CREATE TABLE IF NOT EXISTS public.pesan (id BIGINT PRIMARY KEY, timestamp TEXT NOT NULL, ...);
-CREATE TABLE IF NOT EXISTS public.admin_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, ...);
--- Termasuk GRANT ALL dan Policy RLS aman untuk Vercel & Client!`}</pre>
+                <pre>{`-- Skrip dibungkus dalam blok transaksi BEGIN ... COMMIT
+BEGIN;
+CREATE TABLE IF NOT EXISTS public.site_content (...);
+CREATE TABLE IF NOT EXISTS public.berita (...);
+CREATE TABLE IF NOT EXISTS public.programs (...);
+CREATE TABLE IF NOT EXISTS public.galeri (...);
+CREATE TABLE IF NOT EXISTS public.pengurus (...);
+CREATE TABLE IF NOT EXISTS public.banks (...);
+CREATE TABLE IF NOT EXISTS public.pesan (...);
+CREATE TABLE IF NOT EXISTS public.admin_settings (...);
+CREATE TABLE IF NOT EXISTS public.app_users (...);
+GRANT ALL ON ...;
+COMMIT;`}</pre>
               </div>
 
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs text-slate-600">
                 <h5 className="font-bold text-slate-800">📖 Panduan 3 Langkah Menghubungkan Supabase:</h5>
                 <ol className="list-decimal list-inside space-y-1 pl-1">
-                  <li>Buat project baru gratis di <strong>supabase.com</strong>.</li>
-                  <li>Buka <strong>SQL Editor</strong> di dashboard Supabase, tempel skrip di atas, lalu klik <strong>Run</strong>.</li>
-                  <li>Buka <strong>Project Settings &gt; API</strong>, salin <strong>Project URL</strong> dan <strong>anon key</strong>, lalu masukkan pada formulir <strong>🔑 Pengaturan Kredensial Supabase</strong> di atas dan klik <strong>Simpan Kredensial</strong>.</li>
+                  <li>Buka <strong>SQL Editor</strong> di dashboard Supabase (ikon <code>&gt;_</code> di kiri), klik <strong>New query</strong>, tempel skrip di editor utama, lalu klik <strong>Run</strong>.</li>
+                  <li>Buka <strong>Project Settings &gt; API</strong>, salin <strong>Project URL</strong> dan <strong>anon key</strong>.</li>
+                  <li>Masukkan pada formulir <strong>🔑 Pengaturan Kredensial Supabase</strong> di atas lalu klik <strong>Simpan Kredensial &amp; Hubungkan</strong>.</li>
                 </ol>
-                <p className="text-[11px] text-slate-500 pt-1">
-                  💡 Kredensial yang disimpan di atas bekerja otomatis di Vercel tanpa perlu deploy ulang kode!
-                </p>
               </div>
             </div>
           </div>

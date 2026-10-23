@@ -606,9 +606,10 @@ app.post(['/api/supabase/config', '/supabase/config'], async (req, res) => {
 });
 
 // API 14: Supabase Sync Endpoint
-app.post(['/api/supabase/sync', '/supabase/sync'], async (_req, res) => {
+app.post(['/api/supabase/sync', '/supabase/sync'], async (req, res) => {
   try {
-    const syncResult = await syncLocalToSupabase();
+    const { url, key, data } = req.body || {};
+    const syncResult = await syncLocalToSupabase(url, key, data);
     res.json(syncResult);
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });

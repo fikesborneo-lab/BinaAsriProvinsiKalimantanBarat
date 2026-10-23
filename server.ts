@@ -58,6 +58,16 @@ app.use((_req, res, next) => {
   next();
 });
 
+// Root API Health & Info
+app.get(['/api', '/api/health', '/health'], (_req, res) => {
+  res.json({
+    status: 'online',
+    app: 'Yayasan Bina Asri Kalbar API',
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // API 1: Bootstrap / Get all current database state
 app.get(['/api/bootstrap', '/bootstrap'], async (_req, res) => {
   try {

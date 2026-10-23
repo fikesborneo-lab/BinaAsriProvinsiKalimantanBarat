@@ -10,7 +10,7 @@ import {
   DEFAULT_BANKS,
   DEFAULT_PESAN,
 } from '../data/defaultData.ts';
-import {
+import type {
   KontenWeb,
   BeritaItem,
   ProgramItem,
@@ -23,7 +23,10 @@ import { getSupabaseClient } from '../lib/supabase.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const DB_FILE_PATH = path.resolve(__dirname, '../../data/foundation_db.json');
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+const DB_FILE_PATH = isServerless
+  ? path.resolve('/tmp', 'foundation_db.json')
+  : path.resolve(__dirname, '../../data/foundation_db.json');
 
 export interface DatabaseSchema {
   kontenWeb: KontenWeb;

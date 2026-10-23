@@ -84,8 +84,40 @@ Buka bagian **Project Settings > Environment Variables** di Vercel dan tambahkan
 3. **Dual-Mode Client Fallback**:
    Jika Vercel dideploy dalam mode static hosting, antarmuka web secara otomatis berkomunikasi langsung dengan Supabase client-side melalui `@supabase/supabase-js`, sehingga tidak ada lagi galat HTML 200 saat mengambil JSON.
 
-### Langkah 4: Klik Deploy
-Klik tombol **"Deploy"**. Vercel akan otomatis meng-compile dan website Anda langsung online dengan domain gratis seperti `yayasan-bina-asri.vercel.app` (dan Anda bisa menghubungkan domain `.org` / `.id` yayasan kapan saja).
+### Langkah 4: Klik Deploy & Cara Mengatasi Galat (Redeploy)
+1. Klik tombol **"Deploy"**.
+2. **PENTING**: Jika sebelumnya proses Deploy di Vercel Anda gagal (*Deployment failed with error*), penyebab utamanya adalah:
+   - **Konflik Dependency npm**: Sebelumnya terdapat duplikasi `esbuild` vs `vite` di `package.json` yang memicu galat `ERESOLVE could not resolve` saat Vercel menjalankan `npm install`. Masalah ini telah **DISELESAIKAN** dan file `package-lock.json` resmi telah dibuat.
+   - **Routing Vercel Serverless Function**: Konfigurasi `vercel.json` dan `api/index.ts` telah diselaraskan agar Vercel dapat menjalankan Express API `/api/*` sekaligus Vite frontend `/dist` secara otomatis.
+
+3. **Cara Menerapkan Perbaikan ke Vercel (Hanya 3 Perintah)**:
+   Jalankan ini di folder proyek komputer Anda untuk mengirim perbaikan ke GitHub:
+   ```bash
+   git add .
+   git commit -m "fix: selesaikan dependensi npm dan konfigurasi deploy vercel"
+   git push origin main
+   ```
+   *Begitu perintah ini dijalankan, Vercel akan **otomatis mendeteksi push baru** dan menjalankan ulang build hingga sukses!*
+
+4. **Jika Ingin Redeploy Manual di Dashboard Vercel**:
+   - Buka project Anda di dashboard [vercel.com](https://vercel.com).
+   - Masuk ke tab **Deployments**.
+   - Klik deployment yang bertanda merah (*Failed*), klik ikon tiga titik `...` di pojok kanan atas, lalu pilih **Redeploy**.
+   - Tunggu ~1 menit hingga status berubah menjadi **Ready** (Centang Hijau).
+   - Klik domain yang diberikan (contoh: `https://yayasan-bina-asri-kalbar.vercel.app`). Website Anda kini resmi live di seluruh dunia!
+
+---
+
+## BAGIAN 3: Solusi Cepat Jika Ada Galat di Log Vercel
+
+Jika suatu saat Vercel menampilkan pesan galat, Anda dapat memeriksanya di tab **Building** pada halaman deployment:
+1. **Galat "vite: command not found" atau "npm error ERESOLVE"**:
+   - Pastikan file `package-lock.json` ikut ter-push ke GitHub (`git add package-lock.json package.json && git commit -m "update lockfile" && git push`).
+2. **Halaman 404 saat refresh URL (misal `/berita` atau `/admin`)**:
+   - Pastikan file `vercel.json` ada di root folder dengan rewrite ke `/index.html` (sudah kami konfigurasi).
+3. **Database Supabase Belum Terhubung**:
+   - Masukkan `VITE_SUPABASE_URL` dan `VITE_SUPABASE_ANON_KEY` di menu **Settings > Environment Variables** di Vercel, lalu klik **Save** dan **Redeploy**.
+   - Atau cukup login ke Panel Admin (`/admin`), buka menu **Database Supabase**, dan masukkan URL & Anon Key di formulir yang tersedia. Kredensial akan langsung aktif!
 
 ---
 

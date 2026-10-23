@@ -1,4 +1,4 @@
-import { KontenWeb, BeritaItem, ProgramItem, GaleriItem, PengurusItem, BankAccount, PesanItem, CabangDaerah } from '../types/index.ts';
+import type { KontenWeb, BeritaItem, ProgramItem, GaleriItem, PengurusItem, BankAccount, PesanItem, CabangDaerah } from '../types/index.ts';
 
 export const LOGO_BULAT = 'https://lh3.googleusercontent.com/d/1t_el0P4aHM3gLG4RTDrupVAjYTIaMqMZ';
 export const LOGO_PERSEGI = 'https://lh3.googleusercontent.com/d/1BX2QKAod3qOttaebEYTlW61Mx4L5__5Q';

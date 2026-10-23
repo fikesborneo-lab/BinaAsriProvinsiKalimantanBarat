@@ -11,5 +11,15 @@ export default async function handler(req: any, res: any) {
     }
     initialized = true;
   }
+
+  // Normalize URL if Vercel rewrite alters query or stripped route prefix
+  if (req.url && req.url.includes('?')) {
+    const [pathPart, queryPart] = req.url.split('?');
+    if ((pathPart === '/api' || pathPart === '/' || pathPart === '') && queryPart && !queryPart.includes('=')) {
+      req.url = `/api/${queryPart}`;
+    }
+  }
+
   return app(req, res);
 }
+

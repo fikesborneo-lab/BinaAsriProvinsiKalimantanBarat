@@ -54,8 +54,15 @@ export const AdminLiveToolbar: React.FC<AdminLiveToolbarProps> = ({
           <div className="flex items-center gap-3 flex-wrap">
             <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/10 border border-white/20 text-emerald-200 text-xs font-semibold">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>
-                Admin: <strong className="text-white">{adminSession.user.nama}</strong> ({adminSession.user.role})
+              <span className="text-white font-bold">{adminSession.user.nama}</span>
+              <span
+                className={`px-2 py-0.2 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+                  (adminSession.user.role || '').toLowerCase().includes('super')
+                    ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-400/30'
+                    : 'bg-sky-500/30 text-sky-300 border border-sky-400/30'
+                }`}
+              >
+                {(adminSession.user.role || '').toLowerCase().includes('super') ? 'Super Admin' : 'Editor Konten'}
               </span>
             </div>
 

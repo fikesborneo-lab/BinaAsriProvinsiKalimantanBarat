@@ -122,10 +122,26 @@ export interface PesanItem {
   pesan: string;
 }
 
+export type UserRole = 'superadmin' | 'editor';
+
+export interface AppUser {
+  id: string;
+  username: string;
+  password: string;
+  nama: string;
+  role: UserRole;
+  email?: string;
+  status: 'active' | 'inactive';
+  createdAt: string;
+  lastLogin?: string;
+}
+
 export interface AdminUser {
+  id?: string;
   username: string;
   nama: string;
-  role: string;
+  role: UserRole | string;
+  email?: string;
 }
 
 export interface AdminSession {

@@ -7,7 +7,8 @@ import {
   PengurusItem,
   BankAccount,
   PesanItem,
-  AdminSession
+  AdminSession,
+  AppUser
 } from '../types';
 import {
   DEFAULT_KONTEN_WEB,
@@ -16,7 +17,8 @@ import {
   DEFAULT_GALERI,
   DEFAULT_PENGURUS,
   DEFAULT_BANKS,
-  DEFAULT_PESAN
+  DEFAULT_PESAN,
+  DEFAULT_USERS
 } from '../data/defaultData';
 import { getSupabaseClient } from '../lib/supabase';
 
@@ -34,6 +36,7 @@ interface FoundationContextType {
   pengurus: PengurusItem[];
   banks: BankAccount[];
   pesan: PesanItem[];
+  users: AppUser[];
   adminSession: AdminSession | null;
   directEditMode: boolean;
   unsavedKeys: string[];
@@ -79,6 +82,12 @@ interface FoundationContextType {
   // Messages
   submitPesan: (form: { nama: string; email: string; telepon: string; subjek: string; pesan: string }) => Promise<boolean>;
   deletePesan: (id: number) => Promise<void>;
+
+  // Users & Password Management (RBAC)
+  addUser: (user: Omit<AppUser, 'id' | 'createdAt'>) => Promise<{ success: boolean; message: string }>;
+  updateUser: (user: AppUser) => Promise<{ success: boolean; message: string }>;
+  deleteUser: (id: string) => Promise<{ success: boolean; message: string }>;
+  changePasswordForUser: (targetUsername: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
 
   // Auth
   loginAdmin: (username: string, password: string) => Promise<{ success: boolean; message: string }>;
@@ -179,6 +188,17 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
     return DEFAULT_PESAN;
   });
 
+  const [users, setUsers] = useState<AppUser[]>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed.users) && parsed.users.length > 0) return parsed.users;
+      }
+    } catch (e) {}
+    return DEFAULT_USERS;
+  });
+
   // Admin session
   const [adminSession, setAdminSession] = useState<AdminSession | null>(() => {
     try {
@@ -230,6 +250,17 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
           loadedFromApi = true;
         }
       }
+
+      // Also fetch users from API
+      try {
+        const uRes = await fetch('/api/admin/users');
+        if (uRes.ok && uRes.headers.get('content-type')?.includes('application/json')) {
+          const uData = await uRes.json();
+          if (uData.success && Array.isArray(uData.users) && uData.users.length > 0) {
+            setUsers(uData.users);
+          }
+        }
+      } catch (e) {}
     } catch (err) {
       console.warn('API /api/bootstrap note: trying client-side resolution...', err);
     }
@@ -313,6 +344,24 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
               pesan: r.pesan,
             })));
           }
+
+          // Try fetching app_users if table exists
+          try {
+            const resUsers = await supabase.from('app_users').select('*').order('created_at', { ascending: true });
+            if (!resUsers.error && resUsers.data && resUsers.data.length > 0) {
+              setUsers(resUsers.data.map((r: any) => ({
+                id: String(r.id),
+                username: r.username,
+                password: r.password,
+                nama: r.nama,
+                role: r.role === 'superadmin' ? 'superadmin' : 'editor',
+                email: r.email || '',
+                status: r.status || 'active',
+                createdAt: r.created_at || new Date().toISOString(),
+                lastLogin: r.last_login,
+              })));
+            }
+          } catch (e) {}
         } catch (supErr) {
           console.warn('Client Supabase direct fetch error:', supErr);
         }
@@ -334,13 +383,14 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
         galeri,
         pengurus,
         banks,
-        pesan
+        pesan,
+        users
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch (e) {
       console.error('Failed to sync to local storage', e);
     }
-  }, [kontenWeb, berita, program, galeri, pengurus, banks, pesan]);
+  }, [kontenWeb, berita, program, galeri, pengurus, banks, pesan, users]);
 
   // Direct on-page editing mode
   const toggleDirectEditMode = () => {
@@ -984,6 +1034,181 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
     showToast('Pesan dihapus dari kotak masuk.', 'success');
   };
 
+  // User Management (RBAC)
+  const addUser = async (userData: Omit<AppUser, 'id' | 'createdAt'>): Promise<{ success: boolean; message: string }> => {
+    const usernameClean = userData.username.trim().toLowerCase();
+    const existing = users.find((u) => u.username.toLowerCase() === usernameClean);
+    if (existing) {
+      return { success: false, message: `Username "${userData.username}" sudah digunakan!` };
+    }
+
+    const newUser: AppUser = {
+      ...userData,
+      id: 'usr_' + Date.now(),
+      username: usernameClean,
+      password: userData.password.trim(),
+      nama: userData.nama.trim(),
+      role: userData.role === 'superadmin' ? 'superadmin' : 'editor',
+      status: userData.status || 'active',
+      createdAt: new Date().toISOString().split('T')[0],
+    };
+
+    setUsers((prev) => [...prev, newUser]);
+
+    // Try API
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData),
+      });
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
+        const json = await res.json();
+        if (json.all) setUsers(json.all);
+      }
+    } catch {}
+
+    // Direct Supabase
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('app_users').insert({
+          id: newUser.id,
+          username: newUser.username,
+          password: newUser.password,
+          nama: newUser.nama,
+          role: newUser.role,
+          email: newUser.email || '',
+          status: newUser.status,
+          created_at: newUser.createdAt,
+        });
+      } catch (e) {}
+    }
+
+    showToast(`Pengguna "${newUser.nama}" (${newUser.role === 'superadmin' ? 'Super Admin' : 'Editor'}) berhasil ditambahkan!`, 'success');
+    return { success: true, message: 'Pengguna berhasil ditambahkan!' };
+  };
+
+  const updateUser = async (userData: AppUser): Promise<{ success: boolean; message: string }> => {
+    const usernameClean = userData.username.trim().toLowerCase();
+    const dup = users.find((u) => u.id !== userData.id && u.username.toLowerCase() === usernameClean);
+    if (dup) {
+      return { success: false, message: `Username "${userData.username}" sudah digunakan pengguna lain!` };
+    }
+
+    setUsers((prev) => prev.map((u) => (u.id === userData.id ? { ...u, ...userData, username: usernameClean } : u)));
+
+    // Try API
+    try {
+      const res = await fetch(`/api/admin/users/${userData.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData),
+      });
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
+        const json = await res.json();
+        if (json.all) setUsers(json.all);
+      }
+    } catch {}
+
+    // Direct Supabase
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('app_users').update({
+          username: usernameClean,
+          nama: userData.nama,
+          role: userData.role,
+          email: userData.email || '',
+          status: userData.status,
+          password: userData.password,
+        }).eq('id', userData.id);
+      } catch (e) {}
+    }
+
+    showToast(`Data pengguna "${userData.nama}" berhasil diperbarui!`, 'success');
+    return { success: true, message: 'Data pengguna diperbarui!' };
+  };
+
+  const deleteUser = async (id: string): Promise<{ success: boolean; message: string }> => {
+    const target = users.find((u) => u.id === id);
+    if (!target) return { success: false, message: 'Pengguna tidak ditemukan.' };
+
+    const superadmins = users.filter((u) => u.role === 'superadmin');
+    if (target.role === 'superadmin' && superadmins.length <= 1) {
+      return { success: false, message: 'Tidak dapat menghapus satu-satunya Super Admin!' };
+    }
+
+    setUsers((prev) => prev.filter((u) => u.id !== id));
+
+    // Try API
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE' });
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
+        const json = await res.json();
+        if (json.all) setUsers(json.all);
+      }
+    } catch {}
+
+    // Direct Supabase
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('app_users').delete().eq('id', id);
+      } catch (e) {}
+    }
+
+    showToast(`Pengguna "${target.nama}" telah dihapus.`, 'info');
+    return { success: true, message: 'Pengguna telah dihapus.' };
+  };
+
+  const changePasswordForUser = async (targetUsername: string, newPassword: string): Promise<{ success: boolean; message: string }> => {
+    const uClean = targetUsername.trim().toLowerCase();
+    
+    // Update local state
+    setUsers((prev) =>
+      prev.map((u) => (u.username.toLowerCase() === uClean ? { ...u, password: newPassword.trim() } : u))
+    );
+
+    // Try API
+    try {
+      const res = await fetch('/api/admin/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: uClean, newPass: newPassword.trim(), isSuperAdmin: true }),
+      });
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
+        const json = await res.json();
+        if (json.success) {
+          showToast(`Password untuk user "${targetUsername}" berhasil diperbarui!`, 'success');
+          return { success: true, message: json.message };
+        }
+      }
+    } catch {}
+
+    // Direct Supabase
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('app_users').update({ password: newPassword.trim() }).eq('username', uClean);
+        if (uClean === 'admin') {
+          await supabase.from('admin_settings').upsert({
+            key: 'admin_password',
+            value: newPassword.trim(),
+            updated_at: new Date().toISOString(),
+          });
+        }
+      } catch (e) {}
+    }
+
+    showToast(`Password untuk user "${targetUsername}" berhasil diperbarui!`, 'success');
+    return { success: true, message: 'Password pengguna berhasil diperbarui!' };
+  };
+
   // Auth
   const loginAdmin = async (username: string, password: string) => {
     const u = username.trim().toLowerCase();
@@ -1007,7 +1232,7 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
           };
           setAdminSession(session);
           sessionStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(session));
-          showToast('Login berhasil! Terhubung dengan Database Yayasan.', 'success');
+          showToast(`Selamat datang, ${data.user.nama}! (${data.user.role === 'superadmin' ? 'Super Admin' : 'Editor Konten'})`, 'success');
           return { success: true, message: 'Login berhasil!' };
         }
       }
@@ -1015,6 +1240,58 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
 
     // 2. Direct Supabase credential check
     const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        const { data: suUser, error: suErr } = await supabase.from('app_users').select('*').eq('username', u).single();
+        if (!suErr && suUser && suUser.password === p) {
+          if (suUser.status === 'inactive') {
+            return { success: false, message: 'Akun Anda dinonaktifkan. Hubungi Super Administrator.' };
+          }
+          const session: AdminSession = {
+            user: {
+              id: String(suUser.id),
+              username: suUser.username,
+              nama: suUser.nama,
+              role: suUser.role === 'superadmin' ? 'superadmin' : 'editor',
+              email: suUser.email || '',
+            },
+            token: 'token_' + Date.now(),
+            loginTime: new Date().toLocaleString('id-ID'),
+          };
+          setAdminSession(session);
+          sessionStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(session));
+          showToast(`Login berhasil! Selamat datang, ${suUser.nama}`, 'success');
+          return { success: true, message: 'Login berhasil!' };
+        }
+      } catch (e) {}
+    }
+
+    // 3. Check local users array
+    const matchedUser = users.find((user) => user.username.toLowerCase() === u);
+    if (matchedUser) {
+      if (matchedUser.status === 'inactive') {
+        return { success: false, message: 'Akun ini dinonaktifkan. Hubungi Super Administrator.' };
+      }
+      if (matchedUser.password === p) {
+        const session: AdminSession = {
+          user: {
+            id: matchedUser.id,
+            username: matchedUser.username,
+            nama: matchedUser.nama,
+            role: matchedUser.role,
+            email: matchedUser.email || '',
+          },
+          token: 'token_' + Date.now(),
+          loginTime: new Date().toLocaleString('id-ID'),
+        };
+        setAdminSession(session);
+        sessionStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(session));
+        showToast(`Login berhasil! Selamat datang, ${matchedUser.nama}`, 'success');
+        return { success: true, message: 'Login berhasil!' };
+      }
+    }
+
+    // 4. Legacy admin fallback
     let expectedPass = 'admin123';
     if (supabase) {
       try {
@@ -1028,16 +1305,17 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
     if ((u === 'admin' || u === 'yayasan') && p === expectedPass) {
       const session: AdminSession = {
         user: {
+          id: 'usr_superadmin_01',
           username: u,
-          nama: 'Administrator Yayasan Bina Asri',
-          role: 'Superadmin'
+          nama: 'Super Administrator Yayasan',
+          role: 'superadmin',
         },
         token: 'token_' + Date.now(),
-        loginTime: new Date().toISOString()
+        loginTime: new Date().toISOString(),
       };
       setAdminSession(session);
       sessionStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(session));
-      showToast('Login berhasil!', 'success');
+      showToast('Login berhasil sebagai Super Admin!', 'success');
       return { success: true, message: 'Login berhasil!' };
     }
 
@@ -1053,6 +1331,15 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
   };
 
   const changeAdminPassword = async (oldPass: string, newPass: string) => {
+    const currentUsername = adminSession?.user.username || 'admin';
+    const isSuperAdmin = adminSession?.user.role === 'superadmin';
+
+    // Verify old password against local users state if available
+    const currentUser = users.find((u) => u.username.toLowerCase() === currentUsername.toLowerCase());
+    if (currentUser && currentUser.password !== oldPass) {
+      return { success: false, message: 'Password saat ini tidak cocok!' };
+    }
+
     let success = false;
     let message = 'Gagal mengubah password';
 
@@ -1061,7 +1348,7 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
       const res = await fetch('/api/admin/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ oldPass, newPass }),
+        body: JSON.stringify({ username: currentUsername, oldPass, newPass, isSuperAdmin }),
       });
       const isJson = res.headers.get('content-type')?.includes('application/json');
       if (res.ok && isJson) {
@@ -1077,31 +1364,29 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
     const supabase = getSupabaseClient();
     if (supabase) {
       try {
-        const { data } = await supabase.from('admin_settings').select('value').eq('key', 'admin_password').single();
-        const currentDbPass = data?.value || 'admin123';
-        if (oldPass !== currentDbPass) {
-          return { success: false, message: 'Kata sandi lama tidak cocok!' };
+        await supabase.from('app_users').update({ password: newPass }).eq('username', currentUsername);
+        if (currentUsername === 'admin' || isSuperAdmin) {
+          await supabase.from('admin_settings').upsert({
+            key: 'admin_password',
+            value: newPass,
+            updated_at: new Date().toISOString(),
+          });
         }
-        const { error } = await supabase.from('admin_settings').upsert({
-          key: 'admin_password',
-          value: newPass,
-          updated_at: new Date().toISOString(),
-        });
-        if (!error) {
-          success = true;
-          message = 'Kata sandi admin berhasil diperbarui di Supabase!';
-        }
+        success = true;
+        message = 'Kata sandi berhasil diperbarui di database!';
       } catch (e: any) {
         console.warn('Supabase password change note:', e);
       }
     }
 
-    if (success) {
-      showToast('Password admin berhasil diperbarui!', 'success');
-      return { success: true, message: 'Password berhasil diperbarui!' };
-    }
+    // Update local state
+    setUsers((prev) =>
+      prev.map((u) => (u.username.toLowerCase() === currentUsername.toLowerCase() ? { ...u, password: newPass } : u))
+    );
+    success = true;
 
-    return { success: false, message };
+    showToast('Password Anda berhasil diperbarui!', 'success');
+    return { success: true, message: 'Password berhasil diperbarui!' };
   };
 
   // Client-side full sync to Supabase
@@ -1246,7 +1531,8 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
       galeri,
       pengurus,
       banks,
-      pesan
+      pesan,
+      users
     };
     return JSON.stringify(fullData, null, 2);
   };
@@ -1308,6 +1594,7 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
         pengurus,
         banks,
         pesan,
+        users,
         adminSession,
         directEditMode,
         unsavedKeys,
@@ -1339,6 +1626,10 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
         deleteBank,
         submitPesan,
         deletePesan,
+        addUser,
+        updateUser,
+        deleteUser,
+        changePasswordForUser,
         loginAdmin,
         logoutAdmin,
         changeAdminPassword,

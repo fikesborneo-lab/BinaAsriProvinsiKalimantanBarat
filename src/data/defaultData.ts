@@ -1,4 +1,4 @@
-import type { KontenWeb, BeritaItem, ProgramItem, GaleriItem, PengurusItem, BankAccount, PesanItem, CabangDaerah } from '../types/index.ts';
+import type { KontenWeb, BeritaItem, ProgramItem, GaleriItem, PengurusItem, BankAccount, PesanItem, CabangDaerah, AppUser } from '../types/index.ts';
 
 export const LOGO_BULAT = 'https://lh3.googleusercontent.com/d/1t_el0P4aHM3gLG4RTDrupVAjYTIaMqMZ';
 export const LOGO_PERSEGI = 'https://lh3.googleusercontent.com/d/1BX2QKAod3qOttaebEYTlW61Mx4L5__5Q';
@@ -465,5 +465,28 @@ export const DEFAULT_PESAN: PesanItem[] = [
     telepon: "082152191199",
     subjek: "Informasi Skrining TBC",
     pesan: "Assalamu'alaikum Yayasan Bina Asri, saya ingin menanyakan prosedur skrining TBC gratis dan pemeriksaan kontak erat untuk keluarga saya di Pontianak Barat."
+  }
+];
+
+export const DEFAULT_USERS: AppUser[] = [
+  {
+    id: 'usr_superadmin_01',
+    username: 'admin',
+    password: 'admin123',
+    nama: 'Super Administrator Yayasan',
+    role: 'superadmin',
+    email: 'admin@binaasrikalbar.org',
+    status: 'active',
+    createdAt: '2026-01-01',
+  },
+  {
+    id: 'usr_editor_01',
+    username: 'editor',
+    password: 'editor123',
+    nama: 'Staf Editor Konten Web',
+    role: 'editor',
+    email: 'redaksi@binaasrikalbar.org',
+    status: 'active',
+    createdAt: '2026-01-15',
   }
 ];

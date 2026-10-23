@@ -1,6 +1,6 @@
 {
-  "name": "",
-  "description": "",
+  "name": "Yayasan Bina Asri Kalimantan Barat",
+  "description": "Portal resmi Yayasan Bina Asri Kalimantan Barat - Lembaga sosial kemanusiaan dan penanggulangan Tuberkulosis (TBC).",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -34,6 +34,12 @@ import {
   deletePesanItem,
   getAdminPassword,
   setAdminPassword,
+  getAllUsers,
+  createUser,
+  updateUser,
+  deleteUser,
+  verifyUserLogin,
+  changeUserPassword,
   resetAllDataToDefaults,
   syncLocalToSupabase,
   saveSupabaseCredentials,
@@ -346,20 +352,25 @@ app.delete(['/api/pesan/:id', '/pesan/:id'], async (req, res) => {
   }
 });
 
-// API 9: Admin Auth & Password
+// API 9: Admin Auth & User Management (RBAC)
 app.post(['/api/admin/login', '/admin/login'], async (req, res) => {
   try {
     const { username, password } = req.body;
-    const validPassword = await getAdminPassword();
-    if ((username === 'admin' || username === 'yayasan') && password === validPassword) {
+    if (!username || !password) {
+      return res.status(400).json({ success: false, message: 'Username dan password wajib diisi!' });
+    }
+    const verified = await verifyUserLogin(username, password);
+    if (verified) {
       return res.json({
         success: true,
         user: {
-          username,
-          nama: 'Administrator Yayasan Bina Asri',
-          role: 'Super Admin',
+          id: verified.id,
+          username: verified.username,
+          nama: verified.nama,
+          role: verified.role,
+          email: verified.email,
         },
-        token: `token_${Date.now()}_secure`,
+        token: `token_${Date.now()}_${verified.role}`,
         loginTime: new Date().toLocaleString('id-ID'),
       });
     }
@@ -369,18 +380,73 @@ app.post(['/api/admin/login', '/admin/login'], async (req, res) => {
   }
 });
 
+// User CRUD
+app.get(['/api/admin/users', '/admin/users'], async (_req, res) => {
+  try {
+    const users = await getAllUsers();
+    // Return users list
+    res.json({ success: true, users });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post(['/api/admin/users', '/admin/users'], async (req, res) => {
+  try {
+    const { username, password, nama, role, email, status } = req.body;
+    if (!username || !password || !nama) {
+      return res.status(400).json({ success: false, message: 'Nama, username, dan password wajib diisi!' });
+    }
+    const newUser = await createUser({
+      username,
+      password,
+      nama,
+      role: role === 'superadmin' ? 'superadmin' : 'editor',
+      email: email || '',
+      status: status || 'active',
+    });
+    const allUsers = await getAllUsers();
+    res.json({ success: true, user: newUser, all: allUsers });
+  } catch (err: any) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+app.put(['/api/admin/users/:id', '/admin/users/:id'], async (req, res) => {
+  try {
+    const updated = await updateUser({
+      ...req.body,
+      id: req.params.id,
+    });
+    const allUsers = await getAllUsers();
+    res.json({ success: true, user: updated, all: allUsers });
+  } catch (err: any) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+app.delete(['/api/admin/users/:id', '/admin/users/:id'], async (req, res) => {
+  try {
+    await deleteUser(req.params.id);
+    const allUsers = await getAllUsers();
+    res.json({ success: true, all: allUsers });
+  } catch (err: any) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 app.post(['/api/admin/change-password', '/admin/change-password'], async (req, res) => {
   try {
-    const { oldPass, newPass } = req.body;
-    const currentPass = await getAdminPassword();
-    if (oldPass !== currentPass) {
-      return res.status(400).json({ success: false, message: 'Kata sandi lama tidak sesuai!' });
-    }
+    const { username, oldPass, newPass, isSuperAdmin } = req.body;
     if (!newPass || newPass.length < 5) {
       return res.status(400).json({ success: false, message: 'Kata sandi baru minimal 5 karakter!' });
     }
-    await setAdminPassword(newPass);
-    res.json({ success: true, message: 'Kata sandi admin berhasil diperbarui di database!' });
+    const targetUser = username || 'admin';
+    const result = await changeUserPassword(targetUser, oldPass || '', newPass, Boolean(isSuperAdmin));
+    if (result.success) {
+      return res.json({ success: true, message: result.message });
+    }
+    return res.status(400).json({ success: false, message: result.message });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message || 'Gagal mengubah kata sandi' });
   }

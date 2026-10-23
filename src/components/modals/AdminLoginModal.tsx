@@ -120,11 +120,22 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ isOpen, onClos
           </button>
         </form>
 
-        <div className="mt-5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
-          <p className="font-semibold text-slate-600 mb-0.5">Kredensial Default Pengurus:</p>
-          <p>
-            User: <code className="font-bold text-emerald-800">admin</code> | Sandi:{' '}
-            <code className="font-bold text-emerald-800">admin123</code>
+        <div className="mt-5 p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-500 space-y-1.5">
+          <p className="font-bold text-slate-700 text-center">Kredensial Default Masuk:</p>
+          <div className="grid grid-cols-2 gap-2 text-[11px] pt-0.5">
+            <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900">
+              <span className="font-extrabold block text-emerald-950">👑 Super Admin:</span>
+              <p>User: <code className="font-bold">admin</code></p>
+              <p>Sandi: <code className="font-bold">admin123</code></p>
+            </div>
+            <div className="p-2 rounded-xl bg-sky-50 border border-sky-200 text-sky-900">
+              <span className="font-extrabold block text-sky-950">✍️ Editor Konten:</span>
+              <p>User: <code className="font-bold">editor</code></p>
+              <p>Sandi: <code className="font-bold">editor123</code></p>
+            </div>
+          </div>
+          <p className="text-[10px] text-slate-400 text-center pt-1">
+            Editor dapat mengedit konten web, database hanya diakses Super Admin.
           </p>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useFoundation } from '../context/FoundationContext';
-import { BeritaItem, ProgramItem, PengurusItem, BankAccount, KontenWeb } from '../types';
+import { BeritaItem, ProgramItem, PengurusItem, BankAccount, KontenWeb, AppUser, UserRole } from '../types';
 import { DAFTAR_CABANG_DAERAH } from '../data/defaultData.ts';
 import {
   LayoutDashboard,
@@ -31,7 +31,16 @@ import {
   HardDrive,
   Cloud,
   Sparkles,
-  Rocket
+  Rocket,
+  ShieldCheck,
+  ShieldAlert,
+  UserPlus,
+  Lock,
+  UserCheck,
+  Shield,
+  Eye,
+  EyeOff,
+  X
 } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
 import {
@@ -88,6 +97,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     pengurus,
     banks,
     pesan,
+    users,
     adminSession,
     dashboardTab,
     setDashboardTab,
@@ -101,6 +111,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     deletePesan,
     saveFullKonten,
     changeAdminPassword,
+    addUser,
+    updateUser,
+    deleteUser,
+    changePasswordForUser,
     exportDataJson,
     importDataJson,
     resetToDefaults,
@@ -108,14 +122,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     syncLocalToSupabaseClient
   } = useFoundation();
 
+  // Role calculation
+  const userRole = (adminSession?.user?.role || '').toLowerCase();
+  const isSuperAdmin = userRole === 'superadmin' || userRole.includes('super');
+
   // Local state for "Edit Semua Konten" form
   const [formData, setFormData] = useState<KontenWeb>({ ...kontenWeb });
   const [adminCabangFilter, setAdminCabangFilter] = useState<string>('Semua');
 
-  // Password change state
+  // Password change state (for logged-in user)
   const [oldPass, setOldPass] = useState('');
   const [newPass, setNewPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
+  const [showMyOldPass, setShowMyOldPass] = useState(false);
+  const [showMyNewPass, setShowMyNewPass] = useState(false);
+  const [isChangingMyPass, setIsChangingMyPass] = useState(false);
+
+  // User Management states (Super Admin)
+  const [userModalOpen, setUserModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<AppUser | null>(null);
+  const [userForm, setUserForm] = useState<{
+    username: string;
+    password: string;
+    nama: string;
+    role: UserRole;
+    email: string;
+    status: 'active' | 'inactive';
+  }>({
+    username: '',
+    password: '',
+    nama: '',
+    role: 'editor',
+    email: '',
+    status: 'active',
+  });
+  const [showUserFormPass, setShowUserFormPass] = useState(false);
+  const [isSavingUser, setIsSavingUser] = useState(false);
+
+  // Reset User Password Modal (Super Admin)
+  const [resetPassModalUser, setResetPassModalUser] = useState<AppUser | null>(null);
+  const [newPassForTargetUser, setNewPassForTargetUser] = useState('');
+  const [showResetPassInput, setShowResetPassInput] = useState(false);
+  const [isResettingUserPass, setIsResettingUserPass] = useState(false);
 
   // Supabase state
   const [supabaseInputUrl, setSupabaseInputUrl] = useState('');
@@ -388,7 +436,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
-  const tabs = [
+  // Role-based tabs
+  const baseTabs = [
     { id: 'overview', label: 'Ringkasan', icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: 'konten', label: 'Edit Semua Halaman', icon: <FileText className="w-4 h-4" /> },
     { id: 'berita', label: `Berita (${berita.length})`, icon: <Newspaper className="w-4 h-4" /> },
@@ -397,10 +446,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     { id: 'pengurus', label: `Pengurus (${pengurus.length})`, icon: <Users className="w-4 h-4" /> },
     { id: 'banks', label: `Rekening (${banks.length})`, icon: <CreditCard className="w-4 h-4" /> },
     { id: 'pesan', label: `Pesan (${pesan.length})`, icon: <Inbox className="w-4 h-4" /> },
+  ];
+
+  const superAdminTabs = [
+    { id: 'users', label: `Manajemen User (${users.length})`, icon: <ShieldCheck className="w-4 h-4 text-emerald-600" /> },
     { id: 'supabase', label: 'Database Supabase', icon: <Database className="w-4 h-4 text-emerald-600" /> },
     { id: 'pengaturan', label: 'Akun & Sandi', icon: <KeyRound className="w-4 h-4" /> },
     { id: 'backup', label: 'Cadangkan / Pulihkan', icon: <Download className="w-4 h-4" /> }
   ];
+
+  const editorTabs = [
+    { id: 'pengaturan', label: 'Akun & Sandi', icon: <KeyRound className="w-4 h-4" /> }
+  ];
+
+  const tabs = isSuperAdmin ? [...baseTabs, ...superAdminTabs] : [...baseTabs, ...editorTabs];
 
   const handleSaveAllKonten = (e: React.FormEvent) => {
     e.preventDefault();
@@ -409,17 +468,128 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!oldPass) {
+      showToast('Masukkan kata sandi saat ini!', 'error');
+      return;
+    }
+    if (newPass.length < 5) {
+      showToast('Kata sandi baru minimal 5 karakter!', 'error');
+      return;
+    }
     if (newPass !== confirmPass) {
       showToast('Konfirmasi password baru tidak cocok!', 'error');
       return;
     }
+    setIsChangingMyPass(true);
     const res = await changeAdminPassword(oldPass, newPass);
+    setIsChangingMyPass(false);
     if (res.success) {
       setOldPass('');
       setNewPass('');
       setConfirmPass('');
     } else {
       showToast(res.message, 'error');
+    }
+  };
+
+  // User Management Handlers (Super Admin Only)
+  const handleOpenAddUser = () => {
+    setEditingUser(null);
+    setUserForm({
+      username: '',
+      password: '',
+      nama: '',
+      role: 'editor',
+      email: '',
+      status: 'active',
+    });
+    setShowUserFormPass(false);
+    setUserModalOpen(true);
+  };
+
+  const handleOpenEditUser = (u: AppUser) => {
+    setEditingUser(u);
+    setUserForm({
+      username: u.username,
+      password: '', // Leave blank unless changing password
+      nama: u.nama,
+      role: u.role,
+      email: u.email || '',
+      status: u.status,
+    });
+    setShowUserFormPass(false);
+    setUserModalOpen(true);
+  };
+
+  const handleSaveUserSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userForm.nama.trim() || !userForm.username.trim()) {
+      showToast('Nama dan username wajib diisi!', 'error');
+      return;
+    }
+    if (!editingUser && (!userForm.password || userForm.password.length < 5)) {
+      showToast('Password pengguna baru minimal 5 karakter!', 'error');
+      return;
+    }
+    setIsSavingUser(true);
+    if (editingUser) {
+      const res = await updateUser({
+        ...editingUser,
+        nama: userForm.nama.trim(),
+        username: userForm.username.trim().toLowerCase(),
+        role: userForm.role,
+        email: userForm.email.trim(),
+        status: userForm.status,
+        password: userForm.password ? userForm.password.trim() : editingUser.password,
+      });
+      setIsSavingUser(false);
+      if (res.success) {
+        setUserModalOpen(false);
+      }
+    } else {
+      const res = await addUser({
+        nama: userForm.nama.trim(),
+        username: userForm.username.trim().toLowerCase(),
+        password: userForm.password.trim(),
+        role: userForm.role,
+        email: userForm.email.trim(),
+        status: userForm.status,
+      });
+      setIsSavingUser(false);
+      if (res.success) {
+        setUserModalOpen(false);
+      }
+    }
+  };
+
+  const handleDeleteUserClick = async (u: AppUser) => {
+    if (adminSession?.user?.username?.toLowerCase() === u.username.toLowerCase()) {
+      showToast('Anda tidak dapat menghapus akun Anda sendiri!', 'error');
+      return;
+    }
+    if (confirm(`Apakah Anda yakin ingin menghapus akun pengguna "${u.nama}" (@${u.username})?`)) {
+      await deleteUser(u.id);
+    }
+  };
+
+  const handleOpenResetPassModal = (u: AppUser) => {
+    setResetPassModalUser(u);
+    setNewPassForTargetUser('');
+    setShowResetPassInput(false);
+  };
+
+  const handleSaveResetPassSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetPassModalUser) return;
+    if (!newPassForTargetUser || newPassForTargetUser.length < 5) {
+      showToast('Password baru minimal 5 karakter!', 'error');
+      return;
+    }
+    setIsResettingUserPass(true);
+    const res = await changePasswordForUser(resetPassModalUser.username, newPassForTargetUser.trim());
+    setIsResettingUserPass(false);
+    if (res.success) {
+      setResetPassModalUser(null);
     }
   };
 
@@ -468,9 +638,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <h2 className="text-sm sm:text-base font-extrabold tracking-tight">
                 Panel Manajemen Yayasan Bina Asri
               </h2>
-              <p className="text-[11px] text-slate-400">
-                Halo, <b className="text-white">{adminSession?.user.nama}</b> ({adminSession?.user.role})
-              </p>
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                <span className="text-[11px] text-slate-300">
+                  Masuk sebagai: <b className="text-white">{adminSession?.user.nama}</b>
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                    isSuperAdmin
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                      : 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                  }`}
+                >
+                  {isSuperAdmin ? <ShieldCheck className="w-3 h-3 text-emerald-400" /> : <UserCheck className="w-3 h-3 text-sky-400" />}
+                  <span>{isSuperAdmin ? 'Super Admin' : 'Editor Konten'}</span>
+                </span>
+              </div>
             </div>
           </div>
 
@@ -522,6 +704,43 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </button>
           ))}
         </div>
+
+        {/* ACCESS RESTRICTION BANNER FOR NON-SUPERADMIN */}
+        {!isSuperAdmin && (dashboardTab === 'supabase' || dashboardTab === 'users' || dashboardTab === 'backup') && (
+          <div className="bg-white rounded-3xl border-2 border-rose-200 shadow-xl p-8 max-w-xl mx-auto my-12 text-center animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-rose-200">
+              <ShieldAlert className="w-8 h-8" />
+            </div>
+            <h3 className="text-xl font-black text-rose-950 mb-2">
+              Akses Dibatasi: Khusus Super Admin
+            </h3>
+            <p className="text-xs text-rose-700 leading-relaxed mb-6">
+              Halaman <strong>{dashboardTab === 'supabase' ? 'Database Supabase' : dashboardTab === 'users' ? 'Manajemen Pengguna' : 'Cadangkan & Pulihkan'}</strong> hanya dapat diakses oleh <strong>Super Administrator</strong> Yayasan.
+              Akun Anda terdaftar dengan peran <strong>Editor Konten Web</strong>.
+            </p>
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-left text-xs text-slate-600 mb-6 space-y-2">
+              <p className="font-bold text-slate-800 flex items-center gap-1.5">
+                <Check className="w-4 h-4 text-emerald-600" />
+                <span>Fitur Pengelolaan yang Dapat Anda Akses:</span>
+              </p>
+              <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-600 pl-1">
+                <li>Mengedit seluruh teks &amp; narasi halaman website secara langsung</li>
+                <li>Menerbitkan, mengedit, dan menghapus Berita Yayasan</li>
+                <li>Mengelola Program Kerja, Capaian Target, dan Skrining TBC</li>
+                <li>Mengunggah &amp; memperbarui Galeri Dokumentasi Kegiatan</li>
+                <li>Mengatur data Pengurus Cabang Kabupaten/Kota se-Kalbar</li>
+                <li>Mengelola Rekening Donasi dan membaca Kotak Pesan Pengunjung</li>
+                <li>Mengubah kata sandi akun Anda sendiri pada menu "Akun &amp; Sandi"</li>
+              </ul>
+            </div>
+            <button
+              onClick={() => setDashboardTab('overview')}
+              className="px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow transition-all"
+            >
+              Kembali ke Ringkasan Dashboard
+            </button>
+          </div>
+        )}
 
         {/* TAB 1: OVERVIEW */}
         {dashboardTab === 'overview' && (
@@ -1397,62 +1616,363 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         )}
 
-        {/* TAB 9: PENGATURAN AKUN */}
-        {dashboardTab === 'pengaturan' && (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 max-w-md animate-in fade-in duration-200">
-            <h3 className="text-lg font-black text-slate-900 mb-1">⚙️ Ubah Sandi Akun Admin</h3>
-            <p className="text-xs text-slate-500 mb-6">Ganti password masuk administrator untuk keamanan sistem.</p>
-
-            <form onSubmit={handleChangePassword} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Password Saat Ini</label>
-                <input
-                  type="password"
-                  required
-                  value={oldPass}
-                  onChange={(e) => setOldPass(e.target.value)}
-                  placeholder="Masukkan password saat ini (default: admin123)"
-                  className="w-full px-3.5 py-2.5 rounded-xl border text-sm focus:border-emerald-600 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Password Baru (min. 5 karakter)</label>
-                <input
-                  type="password"
-                  required
-                  minLength={5}
-                  value={newPass}
-                  onChange={(e) => setNewPass(e.target.value)}
-                  placeholder="Masukkan password baru"
-                  className="w-full px-3.5 py-2.5 rounded-xl border text-sm focus:border-emerald-600 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Konfirmasi Password Baru</label>
-                <input
-                  type="password"
-                  required
-                  minLength={5}
-                  value={confirmPass}
-                  onChange={(e) => setConfirmPass(e.target.value)}
-                  placeholder="Ulangi password baru"
-                  className="w-full px-3.5 py-2.5 rounded-xl border text-sm focus:border-emerald-600 outline-none"
-                />
+        {/* TAB MANAJEMEN USER & HAK AKSES (KHUSUS SUPER ADMIN) */}
+        {dashboardTab === 'users' && isSuperAdmin && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            {/* Header Card */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-100 shadow-sm">
+                  <ShieldCheck className="w-7 h-7" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <h3 className="text-xl font-black text-slate-900">
+                      Manajemen Pengguna &amp; Hak Akses Website
+                    </h3>
+                    <span className="px-3 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-200 flex items-center gap-1">
+                      <Shield className="w-3 h-3 text-emerald-600" />
+                      <span>Role-Based Access Control (RBAC)</span>
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 max-w-2xl">
+                    Kelola akun staf dan redaksi yang berhak mengedit website. Super Admin dapat menambah pengguna baru, menentukan peran, mereset password, serta membatasi akses database.
+                  </p>
+                </div>
               </div>
 
-              <button
-                type="submit"
-                className="w-full py-3 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold text-sm shadow flex items-center justify-center gap-2 mt-2"
-              >
-                <Save className="w-4 h-4" />
-                <span>Simpan Password Baru</span>
-              </button>
-            </form>
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleOpenAddUser}
+                  className="px-5 py-2.5 rounded-xl bg-emerald-800 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center gap-2 shadow-lg shadow-emerald-800/20 transition-all hover:-translate-y-0.5"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>Tambah Pengguna Baru</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Role Stat Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0 font-black text-lg">
+                  {users.length}
+                </div>
+                <div>
+                  <h4 className="text-sm font-extrabold text-slate-900">Total Akun Terdaftar</h4>
+                  <span className="text-xs text-slate-500">Semua staf &amp; pengelola website</span>
+                </div>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl border border-emerald-200 bg-emerald-50/40 shadow-sm flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0 font-black text-lg">
+                  {users.filter((u) => u.role === 'superadmin').length}
+                </div>
+                <div>
+                  <h4 className="text-sm font-extrabold text-emerald-950 flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <span>Super Administrator</span>
+                  </h4>
+                  <span className="text-xs text-emerald-700">Akses penuh + Database &amp; User</span>
+                </div>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl border border-sky-200 bg-sky-50/40 shadow-sm flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-sky-100 text-sky-800 flex items-center justify-center shrink-0 font-black text-lg">
+                  {users.filter((u) => u.role === 'editor').length}
+                </div>
+                <div>
+                  <h4 className="text-sm font-extrabold text-sky-950 flex items-center gap-1.5">
+                    <UserCheck className="w-4 h-4 text-sky-600" />
+                    <span>Editor / Redaksi</span>
+                  </h4>
+                  <span className="text-xs text-sky-700">Edit konten saja (Tanpa Database)</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Security Explanation Note */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-slate-50 border border-emerald-200 text-xs text-emerald-950 flex items-start gap-3">
+              <Shield className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
+              <div>
+                <strong className="block font-bold mb-0.5">🔒 Aturan Hak Akses Pengguna Yayasan:</strong>
+                <p className="leading-relaxed">
+                  Pengguna dengan peran <strong>Editor Konten</strong> hanya dapat mengedit berita, program, pengurus cabang, galeri, rekening donasi, dan teks website. Halaman <strong>Database Supabase</strong> dan <strong>Cadangkan/Pulihkan</strong> otomatis disembunyikan serta diblokir sehingga Editor tidak memiliki akses ke data sensitif database.
+                </p>
+              </div>
+            </div>
+
+            {/* Users Table Card */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
+                <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                  <Users className="w-4 h-4 text-emerald-700" />
+                  <span>Daftar Akun Pengguna Website</span>
+                </h4>
+                <span className="text-xs text-slate-500 font-medium">{users.length} Akun Terdaftar</span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50/90 text-slate-600 font-bold border-b border-slate-200">
+                      <th className="py-3.5 px-4">Pengguna</th>
+                      <th className="py-3.5 px-4">Username</th>
+                      <th className="py-3.5 px-4">Peran Sistem</th>
+                      <th className="py-3.5 px-4">Akses Database</th>
+                      <th className="py-3.5 px-4">Status</th>
+                      <th className="py-3.5 px-4 text-center">Aksi &amp; Sandi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {users.map((u) => {
+                      const isCurrent = adminSession?.user?.username?.toLowerCase() === u.username.toLowerCase();
+                      const isSuper = u.role === 'superadmin';
+                      return (
+                        <tr key={u.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs ${
+                                  isSuper ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-sky-100 text-sky-800 border border-sky-200'
+                                }`}
+                              >
+                                {u.nama.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="font-bold text-slate-900 flex items-center gap-1.5">
+                                  <span>{u.nama}</span>
+                                  {isCurrent && (
+                                    <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-black border border-amber-200">
+                                      Akun Anda
+                                    </span>
+                                  )}
+                                </p>
+                                <span className="text-[11px] text-slate-400">{u.email || 'Tanpa email terdaftar'}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 font-mono font-bold text-slate-800">
+                            @{u.username}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                                isSuper
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                  : 'bg-sky-100 text-sky-800 border border-sky-200'
+                              }`}
+                            >
+                              {isSuper ? <ShieldCheck className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
+                              <span>{isSuper ? 'Super Admin' : 'Editor Konten'}</span>
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            {isSuper ? (
+                              <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold text-[11px]">
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Akses Database Penuh</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-slate-500 font-medium text-[11px]">
+                                <Lock className="w-3 h-3 text-slate-400" />
+                                <span>Dibatasi (Hanya Konten)</span>
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                u.status === 'active'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : 'bg-slate-100 text-slate-500 border border-slate-200'
+                              }`}
+                            >
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${u.status === 'active' ? 'bg-emerald-500' : 'bg-slate-400'}`}
+                              ></span>
+                              <span>{u.status === 'active' ? 'Aktif' : 'Nonaktif'}</span>
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenResetPassModal(u)}
+                                className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-[11px] flex items-center gap-1 border border-amber-200 transition-colors shadow-sm"
+                                title="Ganti Password Akun Ini"
+                              >
+                                <KeyRound className="w-3 h-3" />
+                                <span>Ganti Sandi</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditUser(u)}
+                                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                                title="Edit Data Pengguna"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isCurrent || (isSuper && users.filter((x) => x.role === 'superadmin').length <= 1)}
+                                onClick={() => handleDeleteUserClick(u)}
+                                className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 disabled:opacity-30 disabled:hover:bg-rose-50 transition-colors"
+                                title={isCurrent ? 'Tidak dapat menghapus akun sendiri' : 'Hapus Akun'}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* TAB SUPABASE: DATABASE CLOUD INTEGRATION */}
-        {dashboardTab === 'supabase' && (
+        {/* TAB 9: PENGATURAN AKUN & UBAH KATA SANDI */}
+        {dashboardTab === 'pengaturan' && (
+          <div className="space-y-6 max-w-2xl animate-in fade-in duration-200">
+            {/* User Profile Card */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+              <div className="flex items-center gap-4">
+                <div
+                  className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl text-white shadow-md ${
+                    isSuperAdmin
+                      ? 'bg-gradient-to-br from-emerald-600 to-emerald-800'
+                      : 'bg-gradient-to-br from-sky-600 to-blue-800'
+                  }`}
+                >
+                  {(adminSession?.user.nama || 'A').charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-lg font-black text-slate-900">{adminSession?.user.nama}</h3>
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                        isSuperAdmin
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          : 'bg-sky-100 text-sky-800 border border-sky-200'
+                      }`}
+                    >
+                      {isSuperAdmin ? <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" /> : <UserCheck className="w-3.5 h-3.5 text-sky-700" />}
+                      <span>{isSuperAdmin ? 'Super Administrator' : 'Editor Konten Web'}</span>
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 font-mono mt-0.5">
+                    Username: <span className="font-bold text-slate-800">@{adminSession?.user.username}</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600">
+                <h5 className="font-bold text-slate-800 mb-1">Tingkat Hak Akses Akun:</h5>
+                <p className="leading-relaxed">
+                  {isSuperAdmin
+                    ? 'Sebagai Super Administrator, Anda memiliki kewenangan penuh atas seluruh konten website, konfigurasi database Supabase, skrip SQL, manajemen pengguna lain, serta pencadangan data.'
+                    : 'Sebagai Editor Konten, Anda memiliki akses untuk mengedit teks halaman, mempublikasikan berita, program kerja, galeri, pengurus, rekening donasi, serta membaca pesan pengunjung. Akses konfigurasi database Supabase dan manajemen akun staf dibatasi khusus untuk Super Admin.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Change Password Form */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+              <h3 className="text-base font-black text-slate-900 mb-1 flex items-center gap-2">
+                <KeyRound className="w-5 h-5 text-emerald-700" />
+                <span>Ubah Kata Sandi Saya</span>
+              </h3>
+              <p className="text-xs text-slate-500 mb-5">
+                Perbarui kata sandi login untuk keamanan akun Anda.
+              </p>
+
+              <form onSubmit={handleChangePassword} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Password Saat Ini <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type={showMyOldPass ? 'text' : 'password'}
+                      required
+                      value={oldPass}
+                      onChange={(e) => setOldPass(e.target.value)}
+                      placeholder="Masukkan kata sandi saat ini"
+                      className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowMyOldPass(!showMyOldPass)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                    >
+                      {showMyOldPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Password Baru (min. 5 karakter) <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type={showMyNewPass ? 'text' : 'password'}
+                      required
+                      minLength={5}
+                      value={newPass}
+                      onChange={(e) => setNewPass(e.target.value)}
+                      placeholder="Masukkan kata sandi baru"
+                      className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowMyNewPass(!showMyNewPass)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                    >
+                      {showMyNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Konfirmasi Password Baru <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type={showMyNewPass ? 'text' : 'password'}
+                      required
+                      minLength={5}
+                      value={confirmPass}
+                      onChange={(e) => setConfirmPass(e.target.value)}
+                      placeholder="Ulangi kata sandi baru"
+                      className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isChangingMyPass}
+                  className="w-full py-3 rounded-xl bg-emerald-800 hover:bg-emerald-700 text-white font-extrabold text-xs shadow flex items-center justify-center gap-2 transition-all disabled:opacity-50 mt-2"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{isChangingMyPass ? 'Menyimpan...' : 'Simpan Kata Sandi Baru'}</span>
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* TAB SUPABASE: DATABASE CLOUD INTEGRATION (SUPER ADMIN ONLY) */}
+        {dashboardTab === 'supabase' && isSuperAdmin && (
           <div className="space-y-6 animate-in fade-in duration-200">
             {/* Header Card */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -1807,6 +2327,19 @@ CREATE TABLE IF NOT EXISTS public.admin_settings (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- TABEL PENGGUNA WEBSITE & HAK AKSES (RBAC: SUPER ADMIN & EDITOR)
+CREATE TABLE IF NOT EXISTS public.app_users (
+  id TEXT PRIMARY KEY,
+  username TEXT UNIQUE NOT NULL,
+  password TEXT NOT NULL,
+  nama TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'editor',
+  email TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  last_login TIMESTAMP WITH TIME ZONE
+);
+
 -- GRANT PERMISSIONS TO ANON, AUTHENTICATED, & SERVICE_ROLE
 GRANT ALL ON TABLE public.site_content TO anon, authenticated, service_role;
 GRANT ALL ON TABLE public.berita TO anon, authenticated, service_role;
@@ -1816,6 +2349,7 @@ GRANT ALL ON TABLE public.pengurus TO anon, authenticated, service_role;
 GRANT ALL ON TABLE public.banks TO anon, authenticated, service_role;
 GRANT ALL ON TABLE public.pesan TO anon, authenticated, service_role;
 GRANT ALL ON TABLE public.admin_settings TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.app_users TO anon, authenticated, service_role;
 
 -- ROW LEVEL SECURITY (RLS) POLICIES
 ALTER TABLE public.site_content ENABLE ROW LEVEL SECURITY;
@@ -1826,6 +2360,7 @@ ALTER TABLE public.pengurus ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.banks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pesan ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.app_users ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Public access site_content" ON public.site_content;
 DROP POLICY IF EXISTS "Public access berita" ON public.berita;
@@ -1835,6 +2370,7 @@ DROP POLICY IF EXISTS "Public access pengurus" ON public.pengurus;
 DROP POLICY IF EXISTS "Public access banks" ON public.banks;
 DROP POLICY IF EXISTS "Public access pesan" ON public.pesan;
 DROP POLICY IF EXISTS "Public access admin_settings" ON public.admin_settings;
+DROP POLICY IF EXISTS "Public access app_users" ON public.app_users;
 
 CREATE POLICY "Public access site_content" ON public.site_content FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public access berita" ON public.berita FOR ALL USING (true) WITH CHECK (true);
@@ -1844,8 +2380,15 @@ CREATE POLICY "Public access pengurus" ON public.pengurus FOR ALL USING (true) W
 CREATE POLICY "Public access banks" ON public.banks FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public access pesan" ON public.pesan FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public access admin_settings" ON public.admin_settings FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access app_users" ON public.app_users FOR ALL USING (true) WITH CHECK (true);
 
-INSERT INTO public.admin_settings (key, value) VALUES ('admin_password', 'admin123') ON CONFLICT (key) DO NOTHING;`;
+INSERT INTO public.admin_settings (key, value) VALUES ('admin_password', 'admin123') ON CONFLICT (key) DO NOTHING;
+
+INSERT INTO public.app_users (id, username, password, nama, role, email, status)
+VALUES 
+  ('usr_superadmin_01', 'admin', 'admin123', 'Super Administrator Yayasan', 'superadmin', 'admin@binaasrikalbar.org', 'active'),
+  ('usr_editor_01', 'editor', 'editor123', 'Staf Editor Konten Web', 'editor', 'redaksi@binaasrikalbar.org', 'active')
+ON CONFLICT (username) DO NOTHING;`;
                     navigator.clipboard.writeText(sql).then(() => {
                       setSqlCopied(true);
                       showToast('Skrip SQL Supabase berhasil disalin!', 'success');
@@ -1887,8 +2430,8 @@ CREATE TABLE IF NOT EXISTS public.admin_settings (key TEXT PRIMARY KEY, value TE
           </div>
         )}
 
-        {/* TAB 10: CADANGKAN & PULIHKAN (GOOGLE DRIVE, SHEETS & LOKAL) */}
-        {dashboardTab === 'backup' && (
+        {/* TAB 10: CADANGKAN & PULIHKAN (GOOGLE DRIVE, SHEETS & LOKAL - KHUSUS SUPER ADMIN) */}
+        {dashboardTab === 'backup' && isSuperAdmin && (
           <div className="space-y-6 max-w-4xl animate-in fade-in duration-200">
             {/* 1. GOOGLE WORKSPACE BACKUP (DRIVE & SHEETS) */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
@@ -2103,6 +2646,264 @@ CREATE TABLE IF NOT EXISTS public.admin_settings (key TEXT PRIMARY KEY, value TE
                   <span>Reset Default</span>
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL 1: TAMBAH / EDIT PENGGUNA (SUPER ADMIN) */}
+        {userModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200">
+            <div
+              className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 sm:p-7 relative animate-in zoom-in-95 duration-200 border border-slate-200 max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setUserModalOpen(false)}
+                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors"
+                aria-label="Tutup"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              <div className="mb-5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center mb-2.5">
+                  <UserPlus className="w-5 h-5" />
+                </div>
+                <h3 className="text-lg font-black text-slate-900">
+                  {editingUser ? 'Edit Data Pengguna' : 'Tambah Pengguna Baru'}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {editingUser
+                    ? `Perbarui informasi akun untuk @${editingUser.username}`
+                    : 'Buat akun staf atau editor baru untuk mengelola website.'}
+                </p>
+              </div>
+
+              <form onSubmit={handleSaveUserSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Nama Lengkap <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={userForm.nama}
+                    onChange={(e) => setUserForm({ ...userForm, nama: e.target.value })}
+                    placeholder="Contoh: Muhammad Ridwan"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Username Login <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-xs font-bold">@</span>
+                    <input
+                      type="text"
+                      required
+                      value={userForm.username}
+                      onChange={(e) =>
+                        setUserForm({
+                          ...userForm,
+                          username: e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, '')
+                        })
+                      }
+                      placeholder="ridwan"
+                      className="w-full pl-8 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">Hanya huruf kecil, angka, garis bawah.</span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {editingUser ? 'Password Baru (Opsional)' : 'Password Login'}{' '}
+                    {!editingUser && <span className="text-rose-500">*</span>}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showUserFormPass ? 'text' : 'password'}
+                      required={!editingUser}
+                      minLength={5}
+                      value={userForm.password}
+                      onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                      placeholder={editingUser ? 'Kosongkan jika tidak diubah' : 'Minimal 5 karakter'}
+                      className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowUserFormPass(!showUserFormPass)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                    >
+                      {showUserFormPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Peran &amp; Hak Akses <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setUserForm({ ...userForm, role: 'editor' })}
+                      className={`p-3 rounded-xl border text-left transition-all ${
+                        userForm.role === 'editor'
+                          ? 'border-sky-500 bg-sky-50/80 ring-2 ring-sky-500/20'
+                          : 'border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-bold text-xs text-sky-950 mb-0.5">
+                        <UserCheck className="w-4 h-4 text-sky-600" />
+                        <span>Editor Konten</span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-tight">
+                        Edit berita, program &amp; narasi web. <strong>Database terkunci.</strong>
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setUserForm({ ...userForm, role: 'superadmin' })}
+                      className={`p-3 rounded-xl border text-left transition-all ${
+                        userForm.role === 'superadmin'
+                          ? 'border-emerald-600 bg-emerald-50/80 ring-2 ring-emerald-600/20'
+                          : 'border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-bold text-xs text-emerald-950 mb-0.5">
+                        <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                        <span>Super Admin</span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-tight">
+                        Akses penuh seluruh sistem + <strong>Database Supabase.</strong>
+                      </p>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Email (Opsional)
+                  </label>
+                  <input
+                    type="email"
+                    value={userForm.email}
+                    onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                    placeholder="nama@binaasrikalbar.org"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Status Akun</label>
+                  <select
+                    value={userForm.status}
+                    onChange={(e) => setUserForm({ ...userForm, status: e.target.value as any })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                  >
+                    <option value="active">Aktif (Dapat Login &amp; Mengedit)</option>
+                    <option value="inactive">Nonaktifkan (Akses Diblokir Sementara)</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setUserModalOpen(false)}
+                    className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingUser}
+                    className="px-5 py-2.5 rounded-xl bg-emerald-800 hover:bg-emerald-700 text-white font-extrabold text-xs shadow flex items-center gap-1.5 transition-all disabled:opacity-50"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>{isSavingUser ? 'Menyimpan...' : editingUser ? 'Simpan Perubahan' : 'Buat Pengguna'}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL 2: RESET PASSWORD PENGGUNA (SUPER ADMIN) */}
+        {resetPassModalUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200">
+            <div
+              className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 relative animate-in zoom-in-95 duration-200 border border-slate-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setResetPassModalUser(null)}
+                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors"
+                aria-label="Tutup"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              <div className="mb-4">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center mb-2.5">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <h3 className="text-base font-black text-slate-900">
+                  Ganti Kata Sandi Pengguna
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Untuk: <strong>{resetPassModalUser.nama}</strong> (@{resetPassModalUser.username})
+                </p>
+              </div>
+
+              <form onSubmit={handleSaveResetPassSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Kata Sandi Baru (min. 5 karakter) <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showResetPassInput ? 'text' : 'password'}
+                      required
+                      minLength={5}
+                      value={newPassForTargetUser}
+                      onChange={(e) => setNewPassForTargetUser(e.target.value)}
+                      placeholder="Masukkan password baru"
+                      className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowResetPassInput(!showResetPassInput)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                    >
+                      {showResetPassInput ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setResetPassModalUser(null)}
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isResettingUserPass}
+                    className="px-4 py-2 rounded-xl bg-amber-700 hover:bg-amber-600 text-white font-extrabold text-xs shadow flex items-center gap-1.5 transition-all disabled:opacity-50"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>{isResettingUserPass ? 'Menyimpan...' : 'Perbarui Sandi'}</span>
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

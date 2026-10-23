@@ -38,7 +38,15 @@ import { TbcScreeningModal } from './components/modals/TbcScreeningModal';
 import { BeritaItem, ProgramItem, GaleriItem, PengurusItem, BankAccount } from './types';
 
 const MainApplication: React.FC = () => {
-  const { activeView, adminSession, saveAllDirectChanges, unsavedKeys } = useFoundation();
+  const { activeView, adminSession, saveAllDirectChanges, unsavedKeys, kontenWeb } = useFoundation();
+
+  // Sync browser document title with foundation content
+  useEffect(() => {
+    if (kontenWeb?.brand_name) {
+      const title = `${kontenWeb.brand_name} ${kontenWeb.brand_sub ? '— ' + kontenWeb.brand_sub : ''}`;
+      document.title = title;
+    }
+  }, [kontenWeb?.brand_name, kontenWeb?.brand_sub]);
 
   // Modals state
   const [loginModalOpen, setLoginModalOpen] = useState(false);

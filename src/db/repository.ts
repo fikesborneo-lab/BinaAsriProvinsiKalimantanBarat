@@ -9,6 +9,7 @@ import {
   DEFAULT_PENGURUS,
   DEFAULT_BANKS,
   DEFAULT_PESAN,
+  DEFAULT_USERS,
 } from '../data/defaultData.ts';
 import type {
   KontenWeb,
@@ -18,6 +19,7 @@ import type {
   PengurusItem,
   BankAccount,
   PesanItem,
+  AppUser,
 } from '../types/index.ts';
 import { getSupabaseClient } from '../lib/supabase.ts';
 
@@ -37,6 +39,7 @@ export interface DatabaseSchema {
   banks: BankAccount[];
   pesan: PesanItem[];
   adminPassword: string;
+  users: AppUser[];
 }
 
 function getInitialDatabase(): DatabaseSchema {
@@ -49,6 +52,7 @@ function getInitialDatabase(): DatabaseSchema {
     banks: [...DEFAULT_BANKS],
     pesan: [...DEFAULT_PESAN],
     adminPassword: 'admin123',
+    users: [...DEFAULT_USERS],
   };
 }
 
@@ -77,6 +81,7 @@ function ensureDbLoaded(): DatabaseSchema {
         banks: Array.isArray(parsed.banks) && parsed.banks.length > 0 ? parsed.banks : [...DEFAULT_BANKS],
         pesan: Array.isArray(parsed.pesan) ? parsed.pesan : [...DEFAULT_PESAN],
         adminPassword: parsed.adminPassword || 'admin123',
+        users: Array.isArray(parsed.users) && parsed.users.length > 0 ? parsed.users : [...DEFAULT_USERS],
       };
       return inMemoryDb;
     }
@@ -751,7 +756,260 @@ export async function deletePesanItem(id: number): Promise<void> {
   }
 }
 
-// 9. Admin Settings / Password
+// 9. User Management & Authentication (RBAC)
+export async function getAllUsers(): Promise<AppUser[]> {
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from('app_users').select('*').order('created_at', { ascending: true });
+      if (!error && data && data.length > 0) {
+        const formatted: AppUser[] = data.map((r: any) => ({
+          id: String(r.id),
+          username: r.username,
+          password: r.password,
+          nama: r.nama,
+          role: r.role === 'superadmin' ? 'superadmin' : 'editor',
+          email: r.email || '',
+          status: r.status || 'active',
+          createdAt: r.created_at || new Date().toISOString(),
+          lastLogin: r.last_login,
+        }));
+        const db = ensureDbLoaded();
+        db.users = formatted;
+        persistDbToFile(db);
+        return formatted;
+      }
+    } catch (err) {
+      console.warn('Supabase getAllUsers notice:', err);
+    }
+  }
+
+  const db = ensureDbLoaded();
+  return [...db.users];
+}
+
+export async function createUser(userData: Omit<AppUser, 'id' | 'createdAt'>): Promise<AppUser> {
+  const db = ensureDbLoaded();
+  const existing = db.users.find(u => u.username.toLowerCase() === userData.username.trim().toLowerCase());
+  if (existing) {
+    throw new Error(`Username "${userData.username}" sudah digunakan!`);
+  }
+
+  const newId = 'usr_' + Date.now();
+  const newUser: AppUser = {
+    ...userData,
+    id: newId,
+    username: userData.username.trim().toLowerCase(),
+    password: userData.password.trim(),
+    nama: userData.nama.trim(),
+    role: userData.role === 'superadmin' ? 'superadmin' : 'editor',
+    status: userData.status || 'active',
+    createdAt: new Date().toISOString().split('T')[0],
+  };
+
+  db.users.push(newUser);
+  persistDbToFile(db);
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      await supabase.from('app_users').insert({
+        id: newUser.id,
+        username: newUser.username,
+        password: newUser.password,
+        nama: newUser.nama,
+        role: newUser.role,
+        email: newUser.email || '',
+        status: newUser.status,
+        created_at: newUser.createdAt,
+      });
+    } catch (err) {
+      console.warn('Supabase createUser notice:', err);
+    }
+  }
+
+  return newUser;
+}
+
+export async function updateUser(userData: AppUser): Promise<AppUser> {
+  const db = ensureDbLoaded();
+  const idx = db.users.findIndex(u => u.id === userData.id);
+  if (idx === -1) {
+    throw new Error('Pengguna tidak ditemukan!');
+  }
+
+  // Prevent duplicate username across different users
+  const dup = db.users.find(u => u.id !== userData.id && u.username.toLowerCase() === userData.username.trim().toLowerCase());
+  if (dup) {
+    throw new Error(`Username "${userData.username}" sudah digunakan pengguna lain!`);
+  }
+
+  const updated: AppUser = {
+    ...db.users[idx],
+    username: userData.username.trim().toLowerCase(),
+    nama: userData.nama.trim(),
+    role: userData.role === 'superadmin' ? 'superadmin' : 'editor',
+    email: userData.email,
+    status: userData.status || 'active',
+    password: userData.password ? userData.password.trim() : db.users[idx].password,
+  };
+
+  db.users[idx] = updated;
+  persistDbToFile(db);
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      await supabase.from('app_users').update({
+        username: updated.username,
+        nama: updated.nama,
+        role: updated.role,
+        email: updated.email || '',
+        status: updated.status,
+        password: updated.password,
+      }).eq('id', updated.id);
+    } catch (err) {
+      console.warn('Supabase updateUser notice:', err);
+    }
+  }
+
+  return updated;
+}
+
+export async function deleteUser(id: string): Promise<boolean> {
+  const db = ensureDbLoaded();
+  const target = db.users.find(u => u.id === id);
+  if (!target) return false;
+
+  // Safeguard: Do not delete if it's the only superadmin
+  const superadmins = db.users.filter(u => u.role === 'superadmin');
+  if (target.role === 'superadmin' && superadmins.length <= 1) {
+    throw new Error('Tidak dapat menghapus satu-satunya Super Admin!');
+  }
+
+  db.users = db.users.filter(u => u.id !== id);
+  persistDbToFile(db);
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      await supabase.from('app_users').delete().eq('id', id);
+    } catch (err) {
+      console.warn('Supabase deleteUser notice:', err);
+    }
+  }
+
+  return true;
+}
+
+export async function verifyUserLogin(username: string, password: string): Promise<AppUser | null> {
+  const u = username.trim().toLowerCase();
+  const p = password.trim();
+
+  // 1. Try Supabase app_users table
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from('app_users').select('*').eq('username', u).single();
+      if (!error && data && data.password === p) {
+        if (data.status === 'inactive') {
+          throw new Error('Akun dinonaktifkan. Hubungi Super Administrator.');
+        }
+        return {
+          id: String(data.id),
+          username: data.username,
+          password: data.password,
+          nama: data.nama,
+          role: data.role === 'superadmin' ? 'superadmin' : 'editor',
+          email: data.email || '',
+          status: data.status || 'active',
+          createdAt: data.created_at || new Date().toISOString(),
+          lastLogin: new Date().toISOString(),
+        };
+      }
+    } catch (err: any) {
+      if (err.message && err.message.includes('dinonaktifkan')) throw err;
+      console.warn('Supabase verifyUserLogin notice:', err);
+    }
+  }
+
+  // 2. Check local database users
+  const db = ensureDbLoaded();
+  const matched = db.users.find(user => user.username.toLowerCase() === u);
+  if (matched) {
+    if (matched.status === 'inactive') {
+      throw new Error('Akun dinonaktifkan. Hubungi Super Administrator.');
+    }
+    if (matched.password === p) {
+      matched.lastLogin = new Date().toISOString();
+      persistDbToFile(db);
+      return matched;
+    }
+  }
+
+  // 3. Fallback compatibility for legacy admin credentials
+  const currentAdminPass = await getAdminPassword();
+  if ((u === 'admin' || u === 'yayasan') && p === currentAdminPass) {
+    const adminUser: AppUser = {
+      id: 'usr_superadmin_01',
+      username: u,
+      password: p,
+      nama: 'Super Administrator Yayasan',
+      role: 'superadmin',
+      email: 'admin@binaasrikalbar.org',
+      status: 'active',
+      createdAt: '2026-01-01',
+      lastLogin: new Date().toISOString(),
+    };
+    return adminUser;
+  }
+
+  return null;
+}
+
+export async function changeUserPassword(
+  username: string,
+  oldPass: string,
+  newPass: string,
+  isSuperAdminOverride = false
+): Promise<{ success: boolean; message: string }> {
+  const db = ensureDbLoaded();
+  const u = username.trim().toLowerCase();
+  const target = db.users.find(user => user.username.toLowerCase() === u);
+
+  if (!target) {
+    // If not found in users, check legacy admin password
+    const legacyPass = await getAdminPassword();
+    if ((u === 'admin' || u === 'yayasan') && (isSuperAdminOverride || oldPass === legacyPass)) {
+      await setAdminPassword(newPass);
+      return { success: true, message: 'Password admin berhasil diubah!' };
+    }
+    return { success: false, message: 'Pengguna tidak ditemukan!' };
+  }
+
+  if (!isSuperAdminOverride && target.password !== oldPass) {
+    return { success: false, message: 'Password saat ini tidak sesuai!' };
+  }
+
+  target.password = newPass.trim();
+  persistDbToFile(db);
+
+  // If this is the main admin, keep adminPassword and admin_settings synced
+  if (target.role === 'superadmin') {
+    await setAdminPassword(newPass.trim());
+  }
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      await supabase.from('app_users').update({ password: target.password }).eq('username', target.username);
+    } catch (e) {}
+  }
+
+  return { success: true, message: `Password untuk user "${target.username}" berhasil diperbarui!` };
+}
+
+// 10. Admin Settings / Password (Legacy Compatibility)
 export async function getAdminPassword(): Promise<string> {
   const supabase = getSupabaseClient();
   if (supabase) {
@@ -772,6 +1030,13 @@ export async function getAdminPassword(): Promise<string> {
 export async function setAdminPassword(newPassword: string): Promise<void> {
   const db = ensureDbLoaded();
   db.adminPassword = newPassword;
+  
+  // Also update default superadmin in users array
+  const adminUser = db.users.find(u => u.username === 'admin');
+  if (adminUser) {
+    adminUser.password = newPassword;
+  }
+  
   persistDbToFile(db);
 
   const supabase = getSupabaseClient();
@@ -782,6 +1047,9 @@ export async function setAdminPassword(newPassword: string): Promise<void> {
         value: newPassword,
         updated_at: new Date().toISOString(),
       });
+      if (adminUser) {
+        await supabase.from('app_users').update({ password: newPassword }).eq('username', 'admin');
+      }
     } catch (err) {
       console.warn('Supabase setAdminPassword notice:', err);
     }
@@ -931,6 +1199,28 @@ export async function syncLocalToSupabase(): Promise<{
       throw new Error(`Gagal pada tabel admin_settings: ${errAdm.message} (${errAdm.code || 'unknown'})`);
     }
     counts['admin_settings'] = 1;
+
+    // 9. App Users (RBAC)
+    if (db.users && db.users.length > 0) {
+      const userRows = db.users.map((u) => ({
+        id: u.id,
+        username: u.username,
+        password: u.password,
+        nama: u.nama,
+        role: u.role,
+        email: u.email || '',
+        status: u.status,
+        created_at: u.createdAt,
+      }));
+      try {
+        const { error: errUsers } = await supabase.from('app_users').upsert(userRows);
+        if (!errUsers) {
+          counts['app_users'] = userRows.length;
+        }
+      } catch (e) {
+        console.warn('Note: app_users table might not be created in Supabase yet.');
+      }
+    }
 
     return {
       success: true,

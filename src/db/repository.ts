@@ -809,8 +809,12 @@ export async function syncLocalToSupabase(): Promise<{
       value: String(value ?? ''),
       updated_at: new Date().toISOString(),
     }));
+    // 1. Site Content
     if (contentRows.length > 0) {
-      await supabase.from('site_content').upsert(contentRows);
+      const { error: errContent } = await supabase.from('site_content').upsert(contentRows);
+      if (errContent) {
+        throw new Error(`Gagal pada tabel site_content: ${errContent.message} (${errContent.code || 'unknown'})`);
+      }
       counts['site_content'] = contentRows.length;
     }
 
@@ -826,7 +830,10 @@ export async function syncLocalToSupabase(): Promise<{
         konten: b.konten,
         gambar: b.gambar,
       }));
-      await supabase.from('berita').upsert(rows);
+      const { error: errBerita } = await supabase.from('berita').upsert(rows);
+      if (errBerita) {
+        throw new Error(`Gagal pada tabel berita: ${errBerita.message} (${errBerita.code || 'unknown'})`);
+      }
       counts['berita'] = rows.length;
     }
 
@@ -839,7 +846,10 @@ export async function syncLocalToSupabase(): Promise<{
         target: p.target,
         progress: p.progress,
       }));
-      await supabase.from('programs').upsert(rows);
+      const { error: errProg } = await supabase.from('programs').upsert(rows);
+      if (errProg) {
+        throw new Error(`Gagal pada tabel programs: ${errProg.message} (${errProg.code || 'unknown'})`);
+      }
       counts['programs'] = rows.length;
     }
 
@@ -850,7 +860,10 @@ export async function syncLocalToSupabase(): Promise<{
         judul: g.judul,
         gambar: g.gambar,
       }));
-      await supabase.from('galeri').upsert(rows);
+      const { error: errGal } = await supabase.from('galeri').upsert(rows);
+      if (errGal) {
+        throw new Error(`Gagal pada tabel galeri: ${errGal.message} (${errGal.code || 'unknown'})`);
+      }
       counts['galeri'] = rows.length;
     }
 
@@ -864,7 +877,10 @@ export async function syncLocalToSupabase(): Promise<{
         cabang: peng.cabang,
         kontak: peng.kontak || '',
       }));
-      await supabase.from('pengurus').upsert(rows);
+      const { error: errPeng } = await supabase.from('pengurus').upsert(rows);
+      if (errPeng) {
+        throw new Error(`Gagal pada tabel pengurus: ${errPeng.message} (${errPeng.code || 'unknown'})`);
+      }
       counts['pengurus'] = rows.length;
     }
 
@@ -877,7 +893,10 @@ export async function syncLocalToSupabase(): Promise<{
         norek: bk.norek,
         an: bk.an,
       }));
-      await supabase.from('banks').upsert(rows);
+      const { error: errBanks } = await supabase.from('banks').upsert(rows);
+      if (errBanks) {
+        throw new Error(`Gagal pada tabel banks: ${errBanks.message} (${errBanks.code || 'unknown'})`);
+      }
       counts['banks'] = rows.length;
     }
 
@@ -892,21 +911,27 @@ export async function syncLocalToSupabase(): Promise<{
         subjek: ps.subjek,
         pesan: ps.pesan,
       }));
-      await supabase.from('pesan').upsert(rows);
+      const { error: errPesan } = await supabase.from('pesan').upsert(rows);
+      if (errPesan) {
+        throw new Error(`Gagal pada tabel pesan: ${errPesan.message} (${errPesan.code || 'unknown'})`);
+      }
       counts['pesan'] = rows.length;
     }
 
     // 8. Admin Settings
-    await supabase.from('admin_settings').upsert({
+    const { error: errAdm } = await supabase.from('admin_settings').upsert({
       key: 'admin_password',
       value: db.adminPassword,
       updated_at: new Date().toISOString(),
     });
+    if (errAdm) {
+      throw new Error(`Gagal pada tabel admin_settings: ${errAdm.message} (${errAdm.code || 'unknown'})`);
+    }
     counts['admin_settings'] = 1;
 
     return {
       success: true,
-      message: 'Seluruh data Yayasan berhasil disinkronkan ke Supabase!',
+      message: 'Seluruh data Yayasan Bina Asri berhasil disinkronkan ke Supabase!',
       insertedCounts: counts,
     };
   } catch (err: any) {
@@ -917,7 +942,51 @@ export async function syncLocalToSupabase(): Promise<{
   }
 }
 
-// 11. Reset to defaults
+// 11. Save Supabase Credentials
+export async function saveSupabaseCredentials(url: string, key: string): Promise<void> {
+  process.env.SUPABASE_URL = url;
+  process.env.SUPABASE_ANON_KEY = key;
+  process.env.VITE_SUPABASE_URL = url;
+  process.env.VITE_SUPABASE_ANON_KEY = key;
+
+  // Persist to .env if writable
+  try {
+    const envPath = path.resolve(__dirname, '../../.env');
+    let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf-8') : '';
+    
+    // Replace or append SUPABASE_URL
+    if (/^SUPABASE_URL=.*$/m.test(envContent)) {
+      envContent = envContent.replace(/^SUPABASE_URL=.*$/m, `SUPABASE_URL="${url}"`);
+    } else {
+      envContent += `\nSUPABASE_URL="${url}"`;
+    }
+
+    // Replace or append SUPABASE_ANON_KEY
+    if (/^SUPABASE_ANON_KEY=.*$/m.test(envContent)) {
+      envContent = envContent.replace(/^SUPABASE_ANON_KEY=.*$/m, `SUPABASE_ANON_KEY="${key}"`);
+    } else {
+      envContent += `\nSUPABASE_ANON_KEY="${key}"`;
+    }
+
+    if (/^VITE_SUPABASE_URL=.*$/m.test(envContent)) {
+      envContent = envContent.replace(/^VITE_SUPABASE_URL=.*$/m, `VITE_SUPABASE_URL="${url}"`);
+    } else {
+      envContent += `\nVITE_SUPABASE_URL="${url}"`;
+    }
+
+    if (/^VITE_SUPABASE_ANON_KEY=.*$/m.test(envContent)) {
+      envContent = envContent.replace(/^VITE_SUPABASE_ANON_KEY=.*$/m, `VITE_SUPABASE_ANON_KEY="${key}"`);
+    } else {
+      envContent += `\nVITE_SUPABASE_ANON_KEY="${key}"`;
+    }
+
+    fs.writeFileSync(envPath, envContent.trim() + '\n', 'utf-8');
+  } catch (e) {
+    console.warn('Notice: .env write skipped in current environment', e);
+  }
+}
+
+// 12. Reset to defaults
 export async function resetAllDataToDefaults(): Promise<void> {
   inMemoryDb = getInitialDatabase();
   persistDbToFile(inMemoryDb);

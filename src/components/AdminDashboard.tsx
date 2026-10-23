@@ -45,6 +45,13 @@ import {
   backupToGoogleDrive,
   exportToGoogleSheets,
 } from '../lib/googleBackup.ts';
+import {
+  getSupabaseConfig,
+  testSupabaseConnection,
+  saveClientSupabaseConfig,
+  clearClientSupabaseConfig,
+  sanitizeSupabaseUrl,
+} from '../lib/supabase.ts';
 
 interface AdminDashboardProps {
   onOpenAddBerita: () => void;
@@ -97,7 +104,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     exportDataJson,
     importDataJson,
     resetToDefaults,
-    showToast
+    showToast,
+    syncLocalToSupabaseClient
   } = useFoundation();
 
   // Local state for "Edit Semua Konten" form
@@ -110,6 +118,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [confirmPass, setConfirmPass] = useState('');
 
   // Supabase state
+  const [supabaseInputUrl, setSupabaseInputUrl] = useState('');
+  const [supabaseInputKey, setSupabaseInputKey] = useState('');
+  const [isSavingSupabaseConfig, setIsSavingSupabaseConfig] = useState(false);
   const [supabaseStatus, setSupabaseStatus] = useState<{
     loading: boolean;
     isConfigured: boolean;
@@ -117,9 +128,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     message: string;
     url?: string;
     tableCounts?: Record<string, number>;
+    missingTables?: string[];
   } | null>(null);
   const [isSyncingSupabase, setIsSyncingSupabase] = useState(false);
   const [sqlCopied, setSqlCopied] = useState(false);
+
+  // Initialize Supabase inputs from current config on mount
+  React.useEffect(() => {
+    const cfg = getSupabaseConfig();
+    if (cfg.url) setSupabaseInputUrl(cfg.url);
+    if (cfg.key) setSupabaseInputKey(cfg.key);
+    fetchSupabaseStatus(cfg.url, cfg.key);
+  }, []);
 
   // Google Workspace auth & backup state
   const [googleUser, setGoogleUser] = useState<FirebaseUser | null>(null);
@@ -234,7 +254,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Import JSON file input ref
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  const fetchSupabaseStatus = async () => {
+  const fetchSupabaseStatus = async (overrideUrl?: string, overrideKey?: string) => {
     setSupabaseStatus((prev) => ({
       loading: true,
       isConfigured: prev?.isConfigured ?? false,
@@ -243,42 +263,128 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       url: prev?.url ?? '',
       tableCounts: prev?.tableCounts ?? {},
     }));
+
+    const urlToTest = overrideUrl ?? supabaseInputUrl;
+    const keyToTest = overrideKey ?? supabaseInputKey;
+
+    // 1. Try server endpoint
     try {
       const res = await fetch('/api/supabase/status');
-      const data = await res.json();
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
+        const data = await res.json();
+        setSupabaseStatus({
+          loading: false,
+          isConfigured: Boolean(data.isConfigured),
+          connected: Boolean(data.connected),
+          message: data.message || 'Status Supabase dicek.',
+          url: data.url || (urlToTest ? sanitizeSupabaseUrl(urlToTest) : ''),
+          tableCounts: data.tableCounts || {},
+          missingTables: data.missingTables || [],
+        });
+        return;
+      }
+    } catch {}
+
+    // 2. Client-side direct test (works even on static Vercel!)
+    try {
+      const testResult = await testSupabaseConnection(urlToTest, keyToTest);
       setSupabaseStatus({
         loading: false,
-        isConfigured: Boolean(data.isConfigured),
-        connected: Boolean(data.connected),
-        message: data.message || 'Status Supabase dicek.',
-        url: data.url || '',
-        tableCounts: data.tableCounts || {},
+        isConfigured: Boolean(urlToTest && keyToTest),
+        connected: testResult.connected,
+        message: testResult.message,
+        url: urlToTest ? sanitizeSupabaseUrl(urlToTest) : '',
+        tableCounts: testResult.tableCounts || {},
+        missingTables: testResult.missingTables || [],
       });
     } catch (err: any) {
       setSupabaseStatus({
         loading: false,
         isConfigured: false,
         connected: false,
-        message: 'Gagal memeriksa koneksi ke server.',
+        message: `Gagal memeriksa koneksi: ${err.message}`,
       });
     }
   };
 
+  const handleSaveSupabaseConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supabaseInputUrl.trim() || !supabaseInputKey.trim()) {
+      showToast('Harap masukkan URL Proyek dan API Key Supabase!', 'error');
+      return;
+    }
+
+    const cleanUrl = sanitizeSupabaseUrl(supabaseInputUrl);
+    const cleanKey = supabaseInputKey.trim();
+
+    setIsSavingSupabaseConfig(true);
+
+    // Save to client localStorage immediately (persists on Vercel frontend)
+    saveClientSupabaseConfig(cleanUrl, cleanKey);
+
+    // Also persist to server endpoint if running in fullstack mode
+    try {
+      await fetch('/api/supabase/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: cleanUrl, key: cleanKey }),
+      });
+    } catch {}
+
+    setIsSavingSupabaseConfig(false);
+    showToast('Kredensial Supabase berhasil disimpan!', 'success');
+
+    // Run connection test
+    await fetchSupabaseStatus(cleanUrl, cleanKey);
+  };
+
+  const handleClearSupabaseConfig = () => {
+    if (!confirm('Hapus kredensial Supabase dari penyimpanan?')) return;
+    clearClientSupabaseConfig();
+    setSupabaseInputUrl('');
+    setSupabaseInputKey('');
+    setSupabaseStatus(null);
+    showToast('Kredensial Supabase telah dihapus.', 'info');
+  };
+
   const handleSyncToSupabase = async () => {
     setIsSyncingSupabase(true);
+    let success = false;
+    let msg = '';
+
+    // 1. Try server sync endpoint
     try {
       const res = await fetch('/api/supabase/sync', { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        showToast(data.message, 'success');
-        fetchSupabaseStatus();
-      } else {
-        showToast(data.message || 'Gagal sinkronisasi data ke Supabase.', 'error');
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
+        const data = await res.json();
+        if (data.success) {
+          success = true;
+          msg = data.message;
+        } else {
+          msg = data.message;
+        }
       }
-    } catch (err: any) {
-      showToast('Gagal menghubungi endpoint sinkronisasi.', 'error');
-    } finally {
-      setIsSyncingSupabase(false);
+    } catch {}
+
+    // 2. Client-side fallback sync (for static Vercel or when backend is unavailable)
+    if (!success) {
+      try {
+        const clientSync = await syncLocalToSupabaseClient();
+        success = clientSync.success;
+        msg = clientSync.message;
+      } catch (err: any) {
+        msg = err.message || 'Sinkronisasi gagal.';
+      }
+    }
+
+    setIsSyncingSupabase(false);
+    if (success) {
+      showToast(msg || 'Seluruh data Yayasan berhasil disinkronkan ke Supabase!', 'success');
+      await fetchSupabaseStatus();
+    } else {
+      showToast(msg || 'Gagal sinkronisasi data ke Supabase.', 'error');
     }
   };
 
@@ -1391,7 +1497,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
-                  onClick={fetchSupabaseStatus}
+                  onClick={() => fetchSupabaseStatus()}
                   className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-colors"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${supabaseStatus?.loading ? 'animate-spin' : ''}`} />
@@ -1407,6 +1513,96 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <ExternalLink className="w-3.5 h-3.5" />
                 </a>
               </div>
+            </div>
+
+            {/* Supabase Credentials Setup Form */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                    <KeyRound className="w-4 h-4 text-emerald-600" />
+                    <span>🔑 Pengaturan Kredensial Supabase</span>
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Masukkan URL Proyek dan API Key Supabase Anda. Tersimpan di browser (Vercel) dan file konfigurasi server agar data tidak hilang saat commit &amp; deploy ulang.
+                  </p>
+                </div>
+                {supabaseInputUrl && (
+                  <button
+                    type="button"
+                    onClick={handleClearSupabaseConfig}
+                    className="text-xs text-rose-600 hover:text-rose-700 font-semibold underline"
+                  >
+                    Hapus Kredensial
+                  </button>
+                )}
+              </div>
+
+              <form onSubmit={handleSaveSupabaseConfig} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Project URL Supabase <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={supabaseInputUrl}
+                      onChange={(e) => setSupabaseInputUrl(e.target.value)}
+                      placeholder="https://xyzabcdefghijklm.supabase.co"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs text-slate-900 font-mono focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                      required
+                    />
+                    <span className="text-[10px] text-slate-400 block mt-1">
+                      Format: <code>https://&lt;id-proyek&gt;.supabase.co</code> (Bukan URL postgresql://)
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      API Key (anon / public atau service_role) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="password"
+                      value={supabaseInputKey}
+                      onChange={(e) => setSupabaseInputKey(e.target.value)}
+                      placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs text-slate-900 font-mono focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                      required
+                    />
+                    <span className="text-[10px] text-slate-400 block mt-1">
+                      Dapatkan dari dashboard Supabase: <strong>Project Settings &gt; API</strong>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 pt-1 flex-wrap">
+                  <button
+                    type="submit"
+                    disabled={isSavingSupabaseConfig}
+                    className="px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-2 shadow transition-all disabled:opacity-50"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>{isSavingSupabaseConfig ? 'Menyimpan...' : 'Simpan Kredensial & Hubungkan'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => fetchSupabaseStatus(supabaseInputUrl, supabaseInputKey)}
+                    disabled={supabaseStatus?.loading}
+                    className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-colors"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${supabaseStatus?.loading ? 'animate-spin' : ''}`} />
+                    <span>Uji Koneksi Sekarang</span>
+                  </button>
+
+                  {supabaseStatus?.connected && (
+                    <span className="text-xs text-emerald-700 font-bold flex items-center gap-1.5 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
+                      <Check className="w-3.5 h-3.5" />
+                      Database Aktif &amp; Terhubung
+                    </span>
+                  )}
+                </div>
+              </form>
             </div>
 
             {/* Status Message Banner if present */}
@@ -1443,6 +1639,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             )}
 
+            {/* Missing Tables Warning */}
+            {supabaseStatus?.missingTables && supabaseStatus.missingTables.length > 0 && (
+              <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-xs space-y-1">
+                <strong className="block font-bold">⚠️ Tabel Belum Ditemukan di Supabase:</strong>
+                <p>
+                  Tabel berikut belum dibuat di database Anda: <code>{supabaseStatus.missingTables.join(', ')}</code>.
+                  Salin skrip SQL di bawah dan jalankan di SQL Editor Supabase untuk membuatnya secara otomatis.
+                </p>
+              </div>
+            )}
+
             {/* Table Counts Grid */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <div className="flex items-center justify-between flex-wrap gap-2">
@@ -1462,7 +1669,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
-                  <span className="text-[11px] font-semibold text-slate-500 block mb-1">Berita & Artikel</span>
+                  <span className="text-[11px] font-semibold text-slate-500 block mb-1">Berita &amp; Artikel</span>
                   <strong className="text-lg font-black text-slate-900">
                     {supabaseStatus?.tableCounts?.['berita'] ?? berita.length}
                   </strong>
@@ -1483,7 +1690,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <span className="text-[10px] text-slate-400 block mt-0.5">tabel: galeri</span>
                 </div>
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
-                  <span className="text-[11px] font-semibold text-slate-500 block mb-1">Pengurus & Cabang</span>
+                  <span className="text-[11px] font-semibold text-slate-500 block mb-1">Pengurus &amp; Cabang</span>
                   <strong className="text-lg font-black text-slate-900">
                     {supabaseStatus?.tableCounts?.['pengurus'] ?? pengurus.length}
                   </strong>
@@ -1518,7 +1725,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
                   <h4 className="font-extrabold text-sm text-slate-900">
-                    ⚡ Skrip SQL Pembuatan Tabel Supabase (DDL)
+                    ⚡ Skrip SQL Pembuatan Tabel &amp; Hak Akses Supabase (DDL)
                   </h4>
                   <p className="text-xs text-slate-500 mt-0.5">
                     Salin skrip SQL ini lalu jalankan di menu <strong>SQL Editor</strong> di dashboard Supabase Anda.
@@ -1527,16 +1734,90 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    const sql = `-- Skema Yayasan Bina Asri
-CREATE TABLE IF NOT EXISTS public.site_content (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL);
-CREATE TABLE IF NOT EXISTS public.berita (id BIGINT PRIMARY KEY, judul TEXT NOT NULL, tanggal TEXT NOT NULL, raw_tanggal TEXT, kategori TEXT NOT NULL DEFAULT 'Sosial', ringkasan TEXT NOT NULL, konten TEXT NOT NULL, gambar TEXT NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL);
-CREATE TABLE IF NOT EXISTS public.programs (id BIGINT PRIMARY KEY, nama TEXT NOT NULL, deskripsi TEXT NOT NULL, target TEXT NOT NULL, progress INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL);
-CREATE TABLE IF NOT EXISTS public.galeri (id BIGINT PRIMARY KEY, judul TEXT NOT NULL, gambar TEXT NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL);
-CREATE TABLE IF NOT EXISTS public.pengurus (id BIGINT PRIMARY KEY, nama TEXT NOT NULL, jabatan TEXT NOT NULL, foto TEXT NOT NULL, cabang TEXT NOT NULL DEFAULT 'Pusat / Wilayah Kalbar', kontak TEXT, created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL);
-CREATE TABLE IF NOT EXISTS public.banks (id BIGINT PRIMARY KEY, bank TEXT NOT NULL, badge TEXT NOT NULL DEFAULT 'Daerah', norek TEXT NOT NULL, an TEXT NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL);
-CREATE TABLE IF NOT EXISTS public.pesan (id BIGINT PRIMARY KEY, timestamp TEXT NOT NULL, nama TEXT NOT NULL, email TEXT, telepon TEXT NOT NULL, subjek TEXT NOT NULL, pesan TEXT NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL);
-CREATE TABLE IF NOT EXISTS public.admin_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL);
+                    const sql = `-- ====================================================================
+-- SKEMA DATABASE SUPABASE RESMI: YAYASAN BINA ASRI KALIMANTAN BARAT
+-- ====================================================================
+CREATE TABLE IF NOT EXISTS public.site_content (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
 
+CREATE TABLE IF NOT EXISTS public.berita (
+  id BIGINT PRIMARY KEY,
+  judul TEXT NOT NULL,
+  tanggal TEXT NOT NULL,
+  raw_tanggal TEXT,
+  kategori TEXT NOT NULL DEFAULT 'Sosial',
+  ringkasan TEXT NOT NULL,
+  konten TEXT NOT NULL,
+  gambar TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.programs (
+  id BIGINT PRIMARY KEY,
+  nama TEXT NOT NULL,
+  deskripsi TEXT NOT NULL,
+  target TEXT NOT NULL,
+  progress INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.galeri (
+  id BIGINT PRIMARY KEY,
+  judul TEXT NOT NULL,
+  gambar TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.pengurus (
+  id BIGINT PRIMARY KEY,
+  nama TEXT NOT NULL,
+  jabatan TEXT NOT NULL,
+  foto TEXT NOT NULL,
+  cabang TEXT NOT NULL DEFAULT 'Pusat / SR Kalbar',
+  kontak TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.banks (
+  id BIGINT PRIMARY KEY,
+  bank TEXT NOT NULL,
+  badge TEXT NOT NULL DEFAULT 'Daerah',
+  norek TEXT NOT NULL,
+  an TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.pesan (
+  id BIGINT PRIMARY KEY,
+  timestamp TEXT NOT NULL,
+  nama TEXT NOT NULL,
+  email TEXT,
+  telepon TEXT NOT NULL,
+  subjek TEXT NOT NULL,
+  pesan TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.admin_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- GRANT PERMISSIONS TO ANON, AUTHENTICATED, & SERVICE_ROLE
+GRANT ALL ON TABLE public.site_content TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.berita TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.programs TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.galeri TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.pengurus TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.banks TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.pesan TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.admin_settings TO anon, authenticated, service_role;
+
+-- ROW LEVEL SECURITY (RLS) POLICIES
 ALTER TABLE public.site_content ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.berita ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.programs ENABLE ROW LEVEL SECURITY;
@@ -1546,21 +1827,25 @@ ALTER TABLE public.banks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pesan ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_settings ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Public read site_content" ON public.site_content FOR SELECT USING (true);
-CREATE POLICY "Public read berita" ON public.berita FOR SELECT USING (true);
-CREATE POLICY "Public read programs" ON public.programs FOR SELECT USING (true);
-CREATE POLICY "Public read galeri" ON public.galeri FOR SELECT USING (true);
-CREATE POLICY "Public read pengurus" ON public.pengurus FOR SELECT USING (true);
-CREATE POLICY "Public read banks" ON public.banks FOR SELECT USING (true);
-CREATE POLICY "Public insert pesan" ON public.pesan FOR INSERT WITH CHECK (true);
-CREATE POLICY "Service full site_content" ON public.site_content USING (true) WITH CHECK (true);
-CREATE POLICY "Service full berita" ON public.berita USING (true) WITH CHECK (true);
-CREATE POLICY "Service full programs" ON public.programs USING (true) WITH CHECK (true);
-CREATE POLICY "Service full galeri" ON public.galeri USING (true) WITH CHECK (true);
-CREATE POLICY "Service full pengurus" ON public.pengurus USING (true) WITH CHECK (true);
-CREATE POLICY "Service full banks" ON public.banks USING (true) WITH CHECK (true);
-CREATE POLICY "Service full pesan" ON public.pesan USING (true) WITH CHECK (true);
-CREATE POLICY "Service full admin_settings" ON public.admin_settings USING (true) WITH CHECK (true);`;
+DROP POLICY IF EXISTS "Public access site_content" ON public.site_content;
+DROP POLICY IF EXISTS "Public access berita" ON public.berita;
+DROP POLICY IF EXISTS "Public access programs" ON public.programs;
+DROP POLICY IF EXISTS "Public access galeri" ON public.galeri;
+DROP POLICY IF EXISTS "Public access pengurus" ON public.pengurus;
+DROP POLICY IF EXISTS "Public access banks" ON public.banks;
+DROP POLICY IF EXISTS "Public access pesan" ON public.pesan;
+DROP POLICY IF EXISTS "Public access admin_settings" ON public.admin_settings;
+
+CREATE POLICY "Public access site_content" ON public.site_content FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access berita" ON public.berita FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access programs" ON public.programs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access galeri" ON public.galeri FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access pengurus" ON public.pengurus FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access banks" ON public.banks FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access pesan" ON public.pesan FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access admin_settings" ON public.admin_settings FOR ALL USING (true) WITH CHECK (true);
+
+INSERT INTO public.admin_settings (key, value) VALUES ('admin_password', 'admin123') ON CONFLICT (key) DO NOTHING;`;
                     navigator.clipboard.writeText(sql).then(() => {
                       setSqlCopied(true);
                       showToast('Skrip SQL Supabase berhasil disalin!', 'success');
@@ -1583,7 +1868,8 @@ CREATE TABLE IF NOT EXISTS public.galeri (id BIGINT PRIMARY KEY, judul TEXT NOT 
 CREATE TABLE IF NOT EXISTS public.pengurus (id BIGINT PRIMARY KEY, nama TEXT NOT NULL, ...);
 CREATE TABLE IF NOT EXISTS public.banks (id BIGINT PRIMARY KEY, bank TEXT NOT NULL, ...);
 CREATE TABLE IF NOT EXISTS public.pesan (id BIGINT PRIMARY KEY, timestamp TEXT NOT NULL, ...);
-CREATE TABLE IF NOT EXISTS public.admin_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, ...);`}</pre>
+CREATE TABLE IF NOT EXISTS public.admin_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, ...);
+-- Termasuk GRANT ALL dan Policy RLS aman untuk Vercel & Client!`}</pre>
               </div>
 
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs text-slate-600">
@@ -1591,10 +1877,10 @@ CREATE TABLE IF NOT EXISTS public.admin_settings (key TEXT PRIMARY KEY, value TE
                 <ol className="list-decimal list-inside space-y-1 pl-1">
                   <li>Buat project baru gratis di <strong>supabase.com</strong>.</li>
                   <li>Buka <strong>SQL Editor</strong> di dashboard Supabase, tempel skrip di atas, lalu klik <strong>Run</strong>.</li>
-                  <li>Buka <strong>Project Settings &gt; API</strong>, salin <strong>URL</strong> dan <strong>anon key / service_role key</strong>, lalu masukkan ke file <code>.env</code> Anda.</li>
+                  <li>Buka <strong>Project Settings &gt; API</strong>, salin <strong>Project URL</strong> dan <strong>anon key</strong>, lalu masukkan pada formulir <strong>🔑 Pengaturan Kredensial Supabase</strong> di atas dan klik <strong>Simpan Kredensial</strong>.</li>
                 </ol>
                 <p className="text-[11px] text-slate-500 pt-1">
-                  Panduan lengkap langkah demi langkah juga tersedia pada file <code>PANDUAN_SUPABASE.md</code> di repositori proyek.
+                  💡 Kredensial yang disimpan di atas bekerja otomatis di Vercel tanpa perlu deploy ulang kode!
                 </p>
               </div>
             </div>

@@ -63,19 +63,26 @@ Pada halaman konfigurasi Vercel:
 - **Output Directory**: `dist`
 
 ### Langkah 3: Tambahkan Environment Variables di Vercel
-Buka bagian **Environment Variables** di Vercel dan tambahkan variabel berikut:
+Buka bagian **Project Settings > Environment Variables** di Vercel dan tambahkan variabel berikut:
 
 | Key | Value / Contoh | Keterangan |
 | :--- | :--- | :--- |
-| `DATABASE_URL` | `postgresql://postgres:[PASSWORD]@[HOST]:[PORT]/[DB_NAME]` | Connection string database PostgreSQL (Supabase / Neon / Cloud SQL) |
-| `NODE_ENV` | `production` | Mode aplikasi production |
-| `GEMINI_API_KEY` | *(Opsional)* API Key dari Google AI Studio | Untuk fitur AI Berita Otomatis gratis |
+| `VITE_SUPABASE_URL` | `https://abcdefghijklm.supabase.co` | Supabase Project URL (wajib agar frontend Vercel langsung terhubung) |
+| `VITE_SUPABASE_ANON_KEY` | `eyJhbGciOi...` | Supabase Anon/Public Key untuk akses client-side |
+| `SUPABASE_URL` | `https://abcdefghijklm.supabase.co` | Untuk fungsi backend API Vercel Serverless (`/api/*`) |
+| `SUPABASE_ANON_KEY` | `eyJhbGciOi...` | Untuk fungsi backend API Vercel Serverless |
+| `GEMINI_API_KEY` | *(Opsional)* API Key Google AI Studio | Untuk fitur pembuatan berita & narasi otomatis dengan AI |
 
-> **Catatan Database Supabase (Gratis & Direkomendasikan untuk Vercel)**:
-> 1. Buat project baru di [supabase.com](https://supabase.com).
-> 2. Buka **Project Settings > Database > Connection String (URI)**.
-> 3. Salin URL tersebut dan masukkan sebagai nilai `DATABASE_URL` di Vercel.
-> Database Anda di Supabase akan tetap aman dan data tidak akan hilang saat website di-update!
+> 💡 **TIPS PRAKTIS (Tanpa Konfigurasi Manual di Vercel)**:
+> Anda juga dapat langsung memasukkan **Project URL** dan **Anon Key** Supabase melalui **Panel Admin** website (`/admin` > Tab **Database Supabase**). Kredensial akan langsung disimpan di browser Anda dan data otomatis tersinkronisasi ke cloud database Supabase!
+
+### Mengapa Update di GitHub & Vercel Sekarang Aman & Permanen?
+1. **Penyimpanan Terpusat di Cloud (Supabase PostgreSQL)**:
+   Saat Anda melakukan `git push` ke GitHub dan Vercel melakukan build ulang (*redeploy*), seluruh data artikel, pengurus cabang, galeri, rekening donasi, dan pengaturan website **TIDAK AKAN HILANG** karena disimpan di server Supabase, bukan di file lokal sementara.
+2. **Dukungan Vercel Serverless Function (`/api`)**:
+   Berkas `api/index.ts` dan konfigurasi `vercel.json` telah disiapkan agar endpoint API `/api/*` berjalan mulus sebagai Vercel Serverless Function.
+3. **Dual-Mode Client Fallback**:
+   Jika Vercel dideploy dalam mode static hosting, antarmuka web secara otomatis berkomunikasi langsung dengan Supabase client-side melalui `@supabase/supabase-js`, sehingga tidak ada lagi galat HTML 200 saat mengambil JSON.
 
 ### Langkah 4: Klik Deploy
 Klik tombol **"Deploy"**. Vercel akan otomatis meng-compile dan website Anda langsung online dengan domain gratis seperti `yayasan-bina-asri.vercel.app` (dan Anda bisa menghubungkan domain `.org` / `.id` yayasan kapan saja).

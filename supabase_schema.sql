@@ -1,17 +1,20 @@
 -- ====================================================================
--- SKEMA DATABASE SUPABASE UNTUK YAYASAN BINA ASRI KALIMANTAN BARAT
+-- SKEMA DATABASE SUPABASE RESMI: YAYASAN BINA ASRI KALIMANTAN BARAT
 -- ====================================================================
--- Jalankan skrip ini di SQL Editor dashboard Supabase Anda:
--- https://supabase.com/dashboard/project/_/sql/new
+-- Petunjuk:
+-- 1. Buka https://supabase.com/dashboard/project/_/sql/new
+-- 2. Tempel seluruh skrip ini di SQL Editor
+-- 3. Klik tombol "RUN" (atau tekan Ctrl + Enter)
+-- ====================================================================
 
--- 1. TABEL: site_content (Pengaturan teks, narasi, kontak, dan logo)
+-- 1. TABEL: site_content (Pengaturan narasi web, judul, kontak, dan logo)
 CREATE TABLE IF NOT EXISTS public.site_content (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 2. TABEL: berita (Kabar berita, artikel, dan dokumentasi)
+-- 2. TABEL: berita (Artikel, berita kegiatan, dan liputan lapangan)
 CREATE TABLE IF NOT EXISTS public.berita (
   id BIGINT PRIMARY KEY,
   judul TEXT NOT NULL,
@@ -24,7 +27,7 @@ CREATE TABLE IF NOT EXISTS public.berita (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 3. TABEL: programs (Program kerja dan progres persentase)
+-- 3. TABEL: programs (Program kerja penanggulangan TBC & capaian)
 CREATE TABLE IF NOT EXISTS public.programs (
   id BIGINT PRIMARY KEY,
   nama TEXT NOT NULL,
@@ -34,7 +37,7 @@ CREATE TABLE IF NOT EXISTS public.programs (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 4. TABEL: galeri (Foto dokumentasi aksi lapangan)
+-- 4. TABEL: galeri (Foto dokumentasi aksi nyata di lapangan)
 CREATE TABLE IF NOT EXISTS public.galeri (
   id BIGINT PRIMARY KEY,
   judul TEXT NOT NULL,
@@ -48,7 +51,7 @@ CREATE TABLE IF NOT EXISTS public.pengurus (
   nama TEXT NOT NULL,
   jabatan TEXT NOT NULL,
   foto TEXT NOT NULL,
-  cabang TEXT NOT NULL DEFAULT 'Pusat / Wilayah Kalbar',
+  cabang TEXT NOT NULL DEFAULT 'Pusat / SR Kalbar',
   kontak TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -75,7 +78,7 @@ CREATE TABLE IF NOT EXISTS public.pesan (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 8. TABEL: admin_settings (Kredensial dan sandi admin yayasan)
+-- 8. TABEL: admin_settings (Kredensial dan sandi administrator)
 CREATE TABLE IF NOT EXISTS public.admin_settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
@@ -83,9 +86,20 @@ CREATE TABLE IF NOT EXISTS public.admin_settings (
 );
 
 -- ====================================================================
--- AKTIFKAN ROW LEVEL SECURITY (RLS) & KEBIJAKAN AKSES
+-- HAK AKSES PERMISSION (GRANTS)
 -- ====================================================================
+GRANT ALL ON TABLE public.site_content TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.berita TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.programs TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.galeri TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.pengurus TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.banks TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.pesan TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.admin_settings TO anon, authenticated, service_role;
 
+-- ====================================================================
+-- AKTIFKAN ROW LEVEL SECURITY (RLS) DENGAN KEBIJAKAN PENUH
+-- ====================================================================
 ALTER TABLE public.site_content ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.berita ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.programs ENABLE ROW LEVEL SECURITY;
@@ -95,55 +109,27 @@ ALTER TABLE public.banks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pesan ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_settings ENABLE ROW LEVEL SECURITY;
 
--- Izinkan publik membaca konten (Anon / Public READ)
-DROP POLICY IF EXISTS "Public can view site content" ON public.site_content;
-CREATE POLICY "Public can view site content" ON public.site_content FOR SELECT USING (true);
+-- Drop previous policies if any
+DROP POLICY IF EXISTS "Public access site_content" ON public.site_content;
+DROP POLICY IF EXISTS "Public access berita" ON public.berita;
+DROP POLICY IF EXISTS "Public access programs" ON public.programs;
+DROP POLICY IF EXISTS "Public access galeri" ON public.galeri;
+DROP POLICY IF EXISTS "Public access pengurus" ON public.pengurus;
+DROP POLICY IF EXISTS "Public access banks" ON public.banks;
+DROP POLICY IF EXISTS "Public access pesan" ON public.pesan;
+DROP POLICY IF EXISTS "Public access admin_settings" ON public.admin_settings;
 
-DROP POLICY IF EXISTS "Public can view news" ON public.berita;
-CREATE POLICY "Public can view news" ON public.berita FOR SELECT USING (true);
+-- Create open RLS policies (allow reading and writing so web & admin operate seamlessly)
+CREATE POLICY "Public access site_content" ON public.site_content FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access berita" ON public.berita FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access programs" ON public.programs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access galeri" ON public.galeri FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access pengurus" ON public.pengurus FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access banks" ON public.banks FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access pesan" ON public.pesan FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access admin_settings" ON public.admin_settings FOR ALL USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Public can view programs" ON public.programs;
-CREATE POLICY "Public can view programs" ON public.programs FOR SELECT USING (true);
-
-DROP POLICY IF EXISTS "Public can view gallery" ON public.galeri;
-CREATE POLICY "Public can view gallery" ON public.galeri FOR SELECT USING (true);
-
-DROP POLICY IF EXISTS "Public can view board members" ON public.pengurus;
-CREATE POLICY "Public can view board members" ON public.pengurus FOR SELECT USING (true);
-
-DROP POLICY IF EXISTS "Public can view banks" ON public.banks;
-CREATE POLICY "Public can view banks" ON public.banks FOR SELECT USING (true);
-
--- Izinkan publik mengirimkan pesan kontak (Anon INSERT)
-DROP POLICY IF EXISTS "Public can submit contact messages" ON public.pesan;
-CREATE POLICY "Public can submit contact messages" ON public.pesan FOR INSERT WITH CHECK (true);
-
--- Izinkan Service Role / Backend melakukan manajemen penuh (CRUD)
-DROP POLICY IF EXISTS "Service role full access site_content" ON public.site_content;
-CREATE POLICY "Service role full access site_content" ON public.site_content USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Service role full access berita" ON public.berita;
-CREATE POLICY "Service role full access berita" ON public.berita USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Service role full access programs" ON public.programs;
-CREATE POLICY "Service role full access programs" ON public.programs USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Service role full access galeri" ON public.galeri;
-CREATE POLICY "Service role full access galeri" ON public.galeri USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Service role full access pengurus" ON public.pengurus;
-CREATE POLICY "Service role full access pengurus" ON public.pengurus USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Service role full access banks" ON public.banks;
-CREATE POLICY "Service role full access banks" ON public.banks USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Service role full access pesan" ON public.pesan;
-CREATE POLICY "Service role full access pesan" ON public.pesan USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Service role full access admin_settings" ON public.admin_settings;
-CREATE POLICY "Service role full access admin_settings" ON public.admin_settings USING (true) WITH CHECK (true);
-
--- Inisialisasi sandi default admin jika belum ada
+-- Default admin password
 INSERT INTO public.admin_settings (key, value)
 VALUES ('admin_password', 'admin123')
 ON CONFLICT (key) DO NOTHING;

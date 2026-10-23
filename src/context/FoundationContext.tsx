@@ -18,6 +18,7 @@ import {
   DEFAULT_BANKS,
   DEFAULT_PESAN
 } from '../data/defaultData';
+import { getSupabaseClient } from '../lib/supabase';
 
 export interface ToastMessage {
   id: string;
@@ -39,6 +40,7 @@ interface FoundationContextType {
   activeView: 'public' | 'dashboard';
   dashboardTab: string;
   toasts: ToastMessage[];
+
   // Actions
   setActiveView: (view: 'public' | 'dashboard') => void;
   setDashboardTab: (tab: string) => void;
@@ -49,36 +51,46 @@ interface FoundationContextType {
   saveAllDirectChanges: () => Promise<void>;
   dismissUnsavedChanges: () => void;
   saveFullKonten: (newKonten: Partial<KontenWeb>) => Promise<void>;
+
   // News CRUD
   addBerita: (item: Omit<BeritaItem, 'id'>) => Promise<void>;
   updateBerita: (item: BeritaItem) => Promise<void>;
   deleteBerita: (id: number) => Promise<void>;
+
   // Program CRUD
   addProgram: (item: Omit<ProgramItem, 'id'>) => Promise<void>;
   updateProgram: (item: ProgramItem) => Promise<void>;
   deleteProgram: (id: number) => Promise<void>;
+
   // Galeri CRUD
   addGaleri: (item: Omit<GaleriItem, 'id'>) => Promise<void>;
   deleteGaleri: (id: number) => Promise<void>;
+
   // Pengurus CRUD
   addPengurus: (item: Omit<PengurusItem, 'id'>) => Promise<void>;
   updatePengurus: (item: PengurusItem) => Promise<void>;
   deletePengurus: (id: number) => Promise<void>;
+
   // Banks CRUD
   addBank: (item: Omit<BankAccount, 'id'>) => Promise<void>;
   updateBank: (item: BankAccount) => Promise<void>;
   deleteBank: (id: number) => Promise<void>;
+
   // Messages
   submitPesan: (form: { nama: string; email: string; telepon: string; subjek: string; pesan: string }) => Promise<boolean>;
   deletePesan: (id: number) => Promise<void>;
+
   // Auth
   loginAdmin: (username: string, password: string) => Promise<{ success: boolean; message: string }>;
   logoutAdmin: () => void;
   changeAdminPassword: (oldPass: string, newPass: string) => Promise<{ success: boolean; message: string }>;
+
   // System
   exportDataJson: () => string;
   importDataJson: (jsonStr: string) => Promise<{ success: boolean; message: string }>;
   resetToDefaults: () => Promise<void>;
+  fetchCloudData: () => Promise<void>;
+  syncLocalToSupabaseClient: () => Promise<{ success: boolean; message: string; counts?: Record<string, number> }>;
 }
 
 const STORAGE_KEY = 'bina_asri_storage_v6_sr_kalbar';
@@ -196,24 +208,115 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Sync to Cloud SQL PostgreSQL: Fetch database bootstrap on mount
+  // Sync / Fetch data from Cloud Database (Hybrid API + Supabase fallback)
   const fetchCloudData = useCallback(async () => {
+    let loadedFromApi = false;
+
+    // 1. Try Express backend endpoint
     try {
       const res = await fetch('/api/bootstrap');
-      if (!res.ok) return;
-      const json = await res.json();
-      if (json.success && json.data) {
-        const d = json.data;
-        if (d.kontenWeb) setKontenWeb(d.kontenWeb);
-        if (Array.isArray(d.berita)) setBerita(d.berita);
-        if (Array.isArray(d.program)) setProgram(d.program);
-        if (Array.isArray(d.galeri)) setGaleri(d.galeri);
-        if (Array.isArray(d.pengurus)) setPengurus(d.pengurus);
-        if (Array.isArray(d.banks)) setBanks(d.banks);
-        if (Array.isArray(d.pesan)) setPesan(d.pesan);
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          const d = json.data;
+          if (d.kontenWeb) setKontenWeb(d.kontenWeb);
+          if (Array.isArray(d.berita)) setBerita(d.berita);
+          if (Array.isArray(d.program)) setProgram(d.program);
+          if (Array.isArray(d.galeri)) setGaleri(d.galeri);
+          if (Array.isArray(d.pengurus)) setPengurus(d.pengurus);
+          if (Array.isArray(d.banks)) setBanks(d.banks);
+          if (Array.isArray(d.pesan)) setPesan(d.pesan);
+          loadedFromApi = true;
+        }
       }
     } catch (err) {
-      console.warn('API /api/bootstrap note: using local cache', err);
+      console.warn('API /api/bootstrap note: trying client-side resolution...', err);
+    }
+
+    // 2. If backend endpoint was not available (e.g., pure static Vercel build), connect directly to Supabase
+    if (!loadedFromApi) {
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        try {
+          console.log('Connecting directly to Supabase PostgreSQL from browser client...');
+          const [resContent, resBerita, resProg, resGal, resPeng, resBanks, resPesan] = await Promise.all([
+            supabase.from('site_content').select('*'),
+            supabase.from('berita').select('*').order('id', { ascending: false }),
+            supabase.from('programs').select('*').order('id', { ascending: false }),
+            supabase.from('galeri').select('*').order('id', { ascending: false }),
+            supabase.from('pengurus').select('*').order('id', { ascending: true }),
+            supabase.from('banks').select('*').order('id', { ascending: true }),
+            supabase.from('pesan').select('*').order('id', { ascending: false }),
+          ]);
+
+          if (!resContent.error && resContent.data && resContent.data.length > 0) {
+            const map: Record<string, string> = {};
+            resContent.data.forEach((r: any) => { map[r.key] = r.value; });
+            setKontenWeb((prev) => ({ ...prev, ...map }));
+          }
+          if (!resBerita.error && resBerita.data && resBerita.data.length > 0) {
+            setBerita(resBerita.data.map((r: any) => ({
+              id: Number(r.id),
+              judul: r.judul,
+              tanggal: r.tanggal,
+              rawTanggal: r.raw_tanggal || r.tanggal,
+              kategori: r.kategori,
+              ringkasan: r.ringkasan,
+              konten: r.konten,
+              gambar: r.gambar,
+            })));
+          }
+          if (!resProg.error && resProg.data && resProg.data.length > 0) {
+            setProgram(resProg.data.map((r: any) => ({
+              id: Number(r.id),
+              nama: r.nama,
+              deskripsi: r.deskripsi,
+              target: r.target,
+              progress: Number(r.progress) || 0,
+            })));
+          }
+          if (!resGal.error && resGal.data && resGal.data.length > 0) {
+            setGaleri(resGal.data.map((r: any) => ({
+              id: Number(r.id),
+              judul: r.judul,
+              gambar: r.gambar,
+            })));
+          }
+          if (!resPeng.error && resPeng.data && resPeng.data.length > 0) {
+            setPengurus(resPeng.data.map((r: any) => ({
+              id: Number(r.id),
+              nama: r.nama,
+              jabatan: r.jabatan,
+              foto: r.foto,
+              cabang: r.cabang,
+              kontak: r.kontak || undefined,
+            })));
+          }
+          if (!resBanks.error && resBanks.data && resBanks.data.length > 0) {
+            setBanks(resBanks.data.map((r: any) => ({
+              id: Number(r.id),
+              bank: r.bank,
+              badge: r.badge,
+              norek: r.norek,
+              an: r.an,
+            })));
+          }
+          if (!resPesan.error && resPesan.data) {
+            setPesan(resPesan.data.map((r: any) => ({
+              id: Number(r.id),
+              timestamp: r.timestamp,
+              nama: r.nama,
+              email: r.email || '',
+              telepon: r.telepon,
+              subjek: r.subjek,
+              pesan: r.pesan,
+            })));
+          }
+        } catch (supErr) {
+          console.warn('Client Supabase direct fetch error:', supErr);
+        }
+      }
     }
   }, []);
 
@@ -268,19 +371,41 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
 
     setUnsavedKeys([]);
 
+    let savedRemote = false;
+
+    // 1. Try Backend API
     try {
       const res = await fetch('/api/site-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ updates }),
       });
-      if (res.ok) {
-        showToast(`Berhasil menyimpan ${count} perubahan langsung ke database PostgreSQL!`, 'success');
-      } else {
-        showToast(`Perubahan tersimpan secara lokal.`, 'info');
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
+        savedRemote = true;
       }
-    } catch (err) {
-      showToast(`Perubahan tersimpan secara lokal.`, 'info');
+    } catch {}
+
+    // 2. Direct Supabase Fallback
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        const rows = Object.entries(updates).map(([key, value]) => ({
+          key,
+          value: String(value ?? ''),
+          updated_at: new Date().toISOString(),
+        }));
+        const { error } = await supabase.from('site_content').upsert(rows);
+        if (!error) savedRemote = true;
+      } catch (err) {
+        console.warn('Supabase direct direct-changes error:', err);
+      }
+    }
+
+    if (savedRemote) {
+      showToast(`Berhasil menyimpan ${count} perubahan teks ke Database!`, 'success');
+    } else {
+      showToast(`Perubahan tersimpan secara lokal di perangkat Anda.`, 'info');
     }
   };
 
@@ -291,18 +416,40 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
   const saveFullKonten = async (newKonten: Partial<KontenWeb>) => {
     setKontenWeb((prev) => ({ ...prev, ...newKonten }));
 
+    let savedRemote = false;
+
+    // 1. Try Backend API
     try {
       const res = await fetch('/api/site-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ updates: newKonten }),
       });
-      if (res.ok) {
-        showToast('Seluruh perubahan konten berhasil disimpan ke database PostgreSQL!', 'success');
-      } else {
-        showToast('Seluruh perubahan konten berhasil disimpan secara lokal!', 'success');
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
+        savedRemote = true;
       }
-    } catch (err) {
+    } catch {}
+
+    // 2. Direct Supabase Fallback
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        const rows = Object.entries(newKonten).map(([key, value]) => ({
+          key,
+          value: String(value ?? ''),
+          updated_at: new Date().toISOString(),
+        }));
+        const { error } = await supabase.from('site_content').upsert(rows);
+        if (!error) savedRemote = true;
+      } catch (err) {
+        console.warn('Supabase direct saveFullKonten error:', err);
+      }
+    }
+
+    if (savedRemote) {
+      showToast('Seluruh perubahan konten berhasil disimpan ke Database Cloud!', 'success');
+    } else {
       showToast('Seluruh perubahan konten berhasil disimpan secara lokal!', 'success');
     }
   };
@@ -323,24 +470,53 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
     };
     setBerita((prev) => [tempItem, ...prev]);
 
+    let savedRemote = false;
+
     try {
       const res = await fetch('/api/berita', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(tempItem),
       });
-      if (res.ok) {
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
         const json = await res.json();
         if (json.all) setBerita(json.all);
+        savedRemote = true;
       }
-      showToast('Berita baru berhasil dipublikasikan dan disimpan permanen di database!', 'success');
-    } catch (err) {
-      showToast('Berita baru berhasil dipublikasikan!', 'success');
+    } catch {}
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        const { error } = await supabase.from('berita').insert({
+          id: tempItem.id,
+          judul: tempItem.judul,
+          tanggal: tempItem.tanggal,
+          raw_tanggal: tempItem.rawTanggal || tempItem.tanggal,
+          kategori: tempItem.kategori,
+          ringkasan: tempItem.ringkasan,
+          konten: tempItem.konten,
+          gambar: tempItem.gambar,
+        });
+        if (!error) savedRemote = true;
+      } catch (e) {
+        console.warn('Supabase direct addBerita note:', e);
+      }
     }
+
+    showToast(
+      savedRemote
+        ? 'Berita baru berhasil dipublikasikan dan tersimpan di database!'
+        : 'Berita baru berhasil dipublikasikan secara lokal!',
+      'success'
+    );
   };
 
   const updateBerita = async (item: BeritaItem) => {
     setBerita((prev) => prev.map((b) => (b.id === item.id ? item : b)));
+
+    let savedRemote = false;
 
     try {
       const res = await fetch(`/api/berita/${item.id}`, {
@@ -348,31 +524,55 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(item),
       });
-      if (res.ok) {
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
         const json = await res.json();
         if (json.all) setBerita(json.all);
+        savedRemote = true;
       }
-      showToast('Berita berhasil diperbarui di database!', 'success');
-    } catch (err) {
-      showToast('Berita berhasil diperbarui!', 'success');
+    } catch {}
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        const { error } = await supabase.from('berita').update({
+          judul: item.judul,
+          tanggal: item.tanggal,
+          raw_tanggal: item.rawTanggal || item.tanggal,
+          kategori: item.kategori,
+          ringkasan: item.ringkasan,
+          konten: item.konten,
+          gambar: item.gambar,
+        }).eq('id', item.id);
+        if (!error) savedRemote = true;
+      } catch (e) {
+        console.warn('Supabase direct updateBerita note:', e);
+      }
     }
+
+    showToast('Berita berhasil diperbarui!', 'success');
   };
 
   const deleteBerita = async (id: number) => {
     setBerita((prev) => prev.filter((b) => b.id !== id));
 
     try {
-      const res = await fetch(`/api/berita/${id}`, {
-        method: 'DELETE',
-      });
-      if (res.ok) {
+      const res = await fetch(`/api/berita/${id}`, { method: 'DELETE' });
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
         const json = await res.json();
         if (json.all) setBerita(json.all);
       }
-      showToast('Berita berhasil dihapus dari database!', 'success');
-    } catch (err) {
-      showToast('Berita berhasil dihapus!', 'success');
+    } catch {}
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('berita').delete().eq('id', id);
+      } catch (e) {}
     }
+
+    showToast('Berita berhasil dihapus!', 'success');
   };
 
   // Program CRUD
@@ -389,14 +589,27 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(tempItem),
       });
-      if (res.ok) {
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
         const json = await res.json();
         if (json.all) setProgram(json.all);
       }
-      showToast('Program kerja baru berhasil disimpan ke database!', 'success');
-    } catch (err) {
-      showToast('Program kerja baru berhasil disimpan!', 'success');
+    } catch {}
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('programs').insert({
+          id: tempItem.id,
+          nama: tempItem.nama,
+          deskripsi: tempItem.deskripsi,
+          target: tempItem.target,
+          progress: tempItem.progress,
+        });
+      } catch (e) {}
     }
+
+    showToast('Program kerja berhasil disimpan!', 'success');
   };
 
   const updateProgram = async (item: ProgramItem) => {
@@ -408,31 +621,48 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(item),
       });
-      if (res.ok) {
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
         const json = await res.json();
         if (json.all) setProgram(json.all);
       }
-      showToast('Program berhasil diperbarui di database!', 'success');
-    } catch (err) {
-      showToast('Program berhasil diperbarui!', 'success');
+    } catch {}
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('programs').update({
+          nama: item.nama,
+          deskripsi: item.deskripsi,
+          target: item.target,
+          progress: item.progress,
+        }).eq('id', item.id);
+      } catch (e) {}
     }
+
+    showToast('Program berhasil diperbarui!', 'success');
   };
 
   const deleteProgram = async (id: number) => {
     setProgram((prev) => prev.filter((p) => p.id !== id));
 
     try {
-      const res = await fetch(`/api/programs/${id}`, {
-        method: 'DELETE',
-      });
-      if (res.ok) {
+      const res = await fetch(`/api/programs/${id}`, { method: 'DELETE' });
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
         const json = await res.json();
         if (json.all) setProgram(json.all);
       }
-      showToast('Program berhasil dihapus dari database!', 'success');
-    } catch (err) {
-      showToast('Program berhasil dihapus!', 'success');
+    } catch {}
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('programs').delete().eq('id', id);
+      } catch (e) {}
     }
+
+    showToast('Program berhasil dihapus!', 'success');
   };
 
   // Galeri CRUD
@@ -449,31 +679,47 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(tempItem),
       });
-      if (res.ok) {
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
         const json = await res.json();
         if (json.all) setGaleri(json.all);
       }
-      showToast('Foto dokumentasi berhasil disimpan ke database!', 'success');
-    } catch (err) {
-      showToast('Foto dokumentasi berhasil ditambahkan ke galeri!', 'success');
+    } catch {}
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('galeri').insert({
+          id: tempItem.id,
+          judul: tempItem.judul,
+          gambar: tempItem.gambar,
+        });
+      } catch (e) {}
     }
+
+    showToast('Foto dokumentasi berhasil disimpan!', 'success');
   };
 
   const deleteGaleri = async (id: number) => {
     setGaleri((prev) => prev.filter((g) => g.id !== id));
 
     try {
-      const res = await fetch(`/api/galeri/${id}`, {
-        method: 'DELETE',
-      });
-      if (res.ok) {
+      const res = await fetch(`/api/galeri/${id}`, { method: 'DELETE' });
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
         const json = await res.json();
         if (json.all) setGaleri(json.all);
       }
-      showToast('Foto galeri berhasil dihapus dari database!', 'success');
-    } catch (err) {
-      showToast('Foto galeri berhasil dihapus!', 'success');
+    } catch {}
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('galeri').delete().eq('id', id);
+      } catch (e) {}
     }
+
+    showToast('Foto galeri berhasil dihapus!', 'success');
   };
 
   // Pengurus CRUD
@@ -490,14 +736,28 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(tempItem),
       });
-      if (res.ok) {
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
         const json = await res.json();
         if (json.all) setPengurus(json.all);
       }
-      showToast('Data pengurus baru berhasil disimpan ke database!', 'success');
-    } catch (err) {
-      showToast('Data pengurus baru berhasil ditambahkan!', 'success');
+    } catch {}
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('pengurus').insert({
+          id: tempItem.id,
+          nama: tempItem.nama,
+          jabatan: tempItem.jabatan,
+          foto: tempItem.foto,
+          cabang: tempItem.cabang,
+          kontak: tempItem.kontak || '',
+        });
+      } catch (e) {}
     }
+
+    showToast('Data pengurus berhasil ditambahkan!', 'success');
   };
 
   const updatePengurus = async (item: PengurusItem) => {
@@ -509,31 +769,49 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(item),
       });
-      if (res.ok) {
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
         const json = await res.json();
         if (json.all) setPengurus(json.all);
       }
-      showToast('Data pengurus berhasil diperbarui di database!', 'success');
-    } catch (err) {
-      showToast('Data pengurus berhasil diperbarui!', 'success');
+    } catch {}
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('pengurus').update({
+          nama: item.nama,
+          jabatan: item.jabatan,
+          foto: item.foto,
+          cabang: item.cabang,
+          kontak: item.kontak || '',
+        }).eq('id', item.id);
+      } catch (e) {}
     }
+
+    showToast('Data pengurus berhasil diperbarui!', 'success');
   };
 
   const deletePengurus = async (id: number) => {
     setPengurus((prev) => prev.filter((p) => p.id !== id));
 
     try {
-      const res = await fetch(`/api/pengurus/${id}`, {
-        method: 'DELETE',
-      });
-      if (res.ok) {
+      const res = await fetch(`/api/pengurus/${id}`, { method: 'DELETE' });
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
         const json = await res.json();
         if (json.all) setPengurus(json.all);
       }
-      showToast('Data pengurus berhasil dihapus dari database!', 'success');
-    } catch (err) {
-      showToast('Data pengurus berhasil dihapus!', 'success');
+    } catch {}
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('pengurus').delete().eq('id', id);
+      } catch (e) {}
     }
+
+    showToast('Data pengurus berhasil dihapus!', 'success');
   };
 
   // Bank CRUD
@@ -551,14 +829,27 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(tempItem),
       });
-      if (res.ok) {
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
         const json = await res.json();
         if (json.all) setBanks(json.all);
       }
-      showToast('Rekening bank baru berhasil disimpan ke database!', 'success');
-    } catch (err) {
-      showToast('Rekening bank baru berhasil ditambahkan!', 'success');
+    } catch {}
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('banks').insert({
+          id: tempItem.id,
+          bank: tempItem.bank,
+          badge: tempItem.badge,
+          norek: tempItem.norek,
+          an: tempItem.an,
+        });
+      } catch (e) {}
     }
+
+    showToast('Rekening bank baru berhasil disimpan!', 'success');
   };
 
   const updateBank = async (item: BankAccount) => {
@@ -571,14 +862,26 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(item),
       });
-      if (res.ok) {
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
         const json = await res.json();
         if (json.all) setBanks(json.all);
       }
-      showToast('Rekening bank berhasil diperbarui di database!', 'success');
-    } catch (err) {
-      showToast('Rekening bank berhasil diperbarui!', 'success');
+    } catch {}
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('banks').update({
+          bank: item.bank,
+          badge: item.badge,
+          norek: item.norek,
+          an: item.an,
+        }).eq('id', item.id);
+      } catch (e) {}
     }
+
+    showToast('Rekening bank berhasil diperbarui!', 'success');
   };
 
   const deleteBank = async (id: number) => {
@@ -586,17 +889,22 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
     setBanks(next);
 
     try {
-      const res = await fetch(`/api/banks/${id}`, {
-        method: 'DELETE',
-      });
-      if (res.ok) {
+      const res = await fetch(`/api/banks/${id}`, { method: 'DELETE' });
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
         const json = await res.json();
         if (json.all) setBanks(json.all);
       }
-      showToast('Rekening bank telah dihapus dari database!', 'success');
-    } catch (err) {
-      showToast('Rekening bank telah dihapus!', 'success');
+    } catch {}
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('banks').delete().eq('id', id);
+      } catch (e) {}
     }
+
+    showToast('Rekening bank telah dihapus!', 'success');
   };
 
   // Messages
@@ -628,14 +936,29 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newItem),
       });
-      if (res.ok) {
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
         const json = await res.json();
         if (json.all) setPesan(json.all);
       }
-      showToast('Pesan Anda berhasil dikirim dan tersimpan di database Yayasan Bina Asri!', 'success');
-    } catch (err) {
-      showToast('Pesan Anda berhasil dikirim!', 'success');
+    } catch {}
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('pesan').insert({
+          id: newItem.id,
+          timestamp: newItem.timestamp,
+          nama: newItem.nama,
+          email: newItem.email || '',
+          telepon: newItem.telepon,
+          subjek: newItem.subjek,
+          pesan: newItem.pesan,
+        });
+      } catch (e) {}
     }
+
+    showToast('Pesan Anda berhasil dikirim dan tersimpan!', 'success');
     return true;
   };
 
@@ -643,17 +966,22 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
     setPesan((prev) => prev.filter((m) => m.id !== id));
 
     try {
-      const res = await fetch(`/api/pesan/${id}`, {
-        method: 'DELETE',
-      });
-      if (res.ok) {
+      const res = await fetch(`/api/pesan/${id}`, { method: 'DELETE' });
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
         const json = await res.json();
         if (json.all) setPesan(json.all);
       }
-      showToast('Pesan dihapus dari kotak masuk database.', 'success');
-    } catch (err) {
-      showToast('Pesan dihapus dari kotak masuk.', 'success');
+    } catch {}
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('pesan').delete().eq('id', id);
+      } catch (e) {}
     }
+
+    showToast('Pesan dihapus dari kotak masuk.', 'success');
   };
 
   // Auth
@@ -661,44 +989,59 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
     const u = username.trim().toLowerCase();
     const p = password.trim();
 
+    // 1. Try server endpoint
     try {
       const res = await fetch('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: u, password: p }),
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        const session: AdminSession = {
-          user: data.user,
-          token: data.token,
-          loginTime: data.loginTime,
-        };
-        setAdminSession(session);
-        sessionStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(session));
-        showToast('Login berhasil! Terhubung dengan Database Yayasan.', 'success');
-        return { success: true, message: 'Login berhasil!' };
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
+        const data = await res.json();
+        if (data.success) {
+          const session: AdminSession = {
+            user: data.user,
+            token: data.token,
+            loginTime: data.loginTime,
+          };
+          setAdminSession(session);
+          sessionStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(session));
+          showToast('Login berhasil! Terhubung dengan Database Yayasan.', 'success');
+          return { success: true, message: 'Login berhasil!' };
+        }
       }
-      return { success: false, message: data.message || 'Username atau Password salah!' };
-    } catch (err: any) {
-      // Local fallback
-      if (u === 'admin' && p === 'admin123') {
-        const session: AdminSession = {
-          user: {
-            username: 'admin',
-            nama: 'Pengurus Bina Asri',
-            role: 'Superadmin'
-          },
-          token: 'token_' + Date.now(),
-          loginTime: new Date().toISOString()
-        };
-        setAdminSession(session);
-        sessionStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(session));
-        showToast('Login berhasil secara lokal.', 'success');
-        return { success: true, message: 'Login berhasil!' };
-      }
-      return { success: false, message: 'Gagal terhubung ke database untuk otentikasi.' };
+    } catch {}
+
+    // 2. Direct Supabase credential check
+    const supabase = getSupabaseClient();
+    let expectedPass = 'admin123';
+    if (supabase) {
+      try {
+        const { data } = await supabase.from('admin_settings').select('value').eq('key', 'admin_password').single();
+        if (data && data.value) {
+          expectedPass = data.value;
+        }
+      } catch {}
     }
+
+    if ((u === 'admin' || u === 'yayasan') && p === expectedPass) {
+      const session: AdminSession = {
+        user: {
+          username: u,
+          nama: 'Administrator Yayasan Bina Asri',
+          role: 'Superadmin'
+        },
+        token: 'token_' + Date.now(),
+        loginTime: new Date().toISOString()
+      };
+      setAdminSession(session);
+      sessionStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(session));
+      showToast('Login berhasil!', 'success');
+      return { success: true, message: 'Login berhasil!' };
+    }
+
+    return { success: false, message: 'Username atau Password salah!' };
   };
 
   const logoutAdmin = () => {
@@ -710,20 +1053,184 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
   };
 
   const changeAdminPassword = async (oldPass: string, newPass: string) => {
+    let success = false;
+    let message = 'Gagal mengubah password';
+
+    // 1. Try server endpoint
     try {
       const res = await fetch('/api/admin/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ oldPass, newPass }),
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        showToast('Password admin berhasil diperbarui di database!', 'success');
-        return { success: true, message: data.message };
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (res.ok && isJson) {
+        const data = await res.json();
+        if (data.success) {
+          success = true;
+          message = data.message;
+        }
       }
-      return { success: false, message: data.message || 'Gagal mengubah password' };
+    } catch {}
+
+    // 2. Direct Supabase Fallback
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        const { data } = await supabase.from('admin_settings').select('value').eq('key', 'admin_password').single();
+        const currentDbPass = data?.value || 'admin123';
+        if (oldPass !== currentDbPass) {
+          return { success: false, message: 'Kata sandi lama tidak cocok!' };
+        }
+        const { error } = await supabase.from('admin_settings').upsert({
+          key: 'admin_password',
+          value: newPass,
+          updated_at: new Date().toISOString(),
+        });
+        if (!error) {
+          success = true;
+          message = 'Kata sandi admin berhasil diperbarui di Supabase!';
+        }
+      } catch (e: any) {
+        console.warn('Supabase password change note:', e);
+      }
+    }
+
+    if (success) {
+      showToast('Password admin berhasil diperbarui!', 'success');
+      return { success: true, message: 'Password berhasil diperbarui!' };
+    }
+
+    return { success: false, message };
+  };
+
+  // Client-side full sync to Supabase
+  const syncLocalToSupabaseClient = async (): Promise<{
+    success: boolean;
+    message: string;
+    counts?: Record<string, number>;
+  }> => {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return {
+        success: false,
+        message: 'Klien Supabase belum dikonfigurasi. Harap masukkan SUPABASE_URL dan API Key terlebih dahulu.',
+      };
+    }
+
+    const counts: Record<string, number> = {};
+
+    try {
+      // 1. Site content
+      const contentRows = Object.entries(kontenWeb).map(([key, value]) => ({
+        key,
+        value: String(value ?? ''),
+        updated_at: new Date().toISOString(),
+      }));
+      if (contentRows.length > 0) {
+        const { error } = await supabase.from('site_content').upsert(contentRows);
+        if (error) throw new Error(`Tabel site_content: ${error.message}`);
+        counts['site_content'] = contentRows.length;
+      }
+
+      // 2. Berita
+      if (berita.length > 0) {
+        const rows = berita.map((b) => ({
+          id: b.id,
+          judul: b.judul,
+          tanggal: b.tanggal,
+          raw_tanggal: b.rawTanggal || b.tanggal,
+          kategori: b.kategori,
+          ringkasan: b.ringkasan,
+          konten: b.konten,
+          gambar: b.gambar,
+        }));
+        const { error } = await supabase.from('berita').upsert(rows);
+        if (error) throw new Error(`Tabel berita: ${error.message}`);
+        counts['berita'] = rows.length;
+      }
+
+      // 3. Programs
+      if (program.length > 0) {
+        const rows = program.map((p) => ({
+          id: p.id,
+          nama: p.nama,
+          deskripsi: p.deskripsi,
+          target: p.target,
+          progress: p.progress,
+        }));
+        const { error } = await supabase.from('programs').upsert(rows);
+        if (error) throw new Error(`Tabel programs: ${error.message}`);
+        counts['programs'] = rows.length;
+      }
+
+      // 4. Galeri
+      if (galeri.length > 0) {
+        const rows = galeri.map((g) => ({
+          id: g.id,
+          judul: g.judul,
+          gambar: g.gambar,
+        }));
+        const { error } = await supabase.from('galeri').upsert(rows);
+        if (error) throw new Error(`Tabel galeri: ${error.message}`);
+        counts['galeri'] = rows.length;
+      }
+
+      // 5. Pengurus
+      if (pengurus.length > 0) {
+        const rows = pengurus.map((pg) => ({
+          id: pg.id,
+          nama: pg.nama,
+          jabatan: pg.jabatan,
+          foto: pg.foto,
+          cabang: pg.cabang,
+          kontak: pg.kontak || '',
+        }));
+        const { error } = await supabase.from('pengurus').upsert(rows);
+        if (error) throw new Error(`Tabel pengurus: ${error.message}`);
+        counts['pengurus'] = rows.length;
+      }
+
+      // 6. Banks
+      if (banks.length > 0) {
+        const rows = banks.map((bk) => ({
+          id: bk.id,
+          bank: bk.bank,
+          badge: bk.badge,
+          norek: bk.norek,
+          an: bk.an,
+        }));
+        const { error } = await supabase.from('banks').upsert(rows);
+        if (error) throw new Error(`Tabel banks: ${error.message}`);
+        counts['banks'] = rows.length;
+      }
+
+      // 7. Pesan
+      if (pesan.length > 0) {
+        const rows = pesan.map((ps) => ({
+          id: ps.id,
+          timestamp: ps.timestamp,
+          nama: ps.nama,
+          email: ps.email || '',
+          telepon: ps.telepon,
+          subjek: ps.subjek,
+          pesan: ps.pesan,
+        }));
+        const { error } = await supabase.from('pesan').upsert(rows);
+        if (error) throw new Error(`Tabel pesan: ${error.message}`);
+        counts['pesan'] = rows.length;
+      }
+
+      return {
+        success: true,
+        message: 'Seluruh data Yayasan berhasil disinkronkan ke Supabase!',
+        counts,
+      };
     } catch (err: any) {
-      return { success: false, message: err.message || 'Koneksi database gagal' };
+      return {
+        success: false,
+        message: err.message || 'Gagal sinkronisasi ke Supabase',
+      };
     }
   };
 
@@ -731,7 +1238,7 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
   const exportDataJson = () => {
     const fullData = {
       version: '2.0',
-      database: 'Cloud SQL PostgreSQL',
+      database: 'Supabase PostgreSQL & Local Cache',
       exportedAt: new Date().toISOString(),
       kontenWeb,
       berita,
@@ -749,11 +1256,7 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
       const parsed = JSON.parse(jsonStr);
       if (parsed.kontenWeb) {
         setKontenWeb({ ...DEFAULT_KONTEN_WEB, ...parsed.kontenWeb });
-        await fetch('/api/site-content', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ updates: parsed.kontenWeb }),
-        });
+        await saveFullKonten(parsed.kontenWeb);
       }
       if (Array.isArray(parsed.berita)) setBerita(parsed.berita);
       if (Array.isArray(parsed.program)) setProgram(parsed.program);
@@ -761,7 +1264,7 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
       if (Array.isArray(parsed.pengurus)) setPengurus(parsed.pengurus);
       if (Array.isArray(parsed.banks)) setBanks(parsed.banks);
       if (Array.isArray(parsed.pesan)) setPesan(parsed.pesan);
-      showToast('Seluruh data berhasil dipulihkan dan disinkronkan ke database!', 'success');
+      showToast('Seluruh data berhasil dipulihkan dan disinkronkan!', 'success');
       return { success: true, message: 'Data cadangan berhasil diimpor.' };
     } catch (e: any) {
       showToast('Gagal mengimpor file: format data tidak valid.', 'error');
@@ -770,21 +1273,29 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
   };
 
   const resetToDefaults = async () => {
+    setKontenWeb(DEFAULT_KONTEN_WEB);
+    setBerita(DEFAULT_BERITA);
+    setProgram(DEFAULT_PROGRAM);
+    setGaleri(DEFAULT_GALERI);
+    setPengurus(DEFAULT_PENGURUS);
+    setBanks(DEFAULT_BANKS);
+    setPesan(DEFAULT_PESAN);
+    localStorage.removeItem(STORAGE_KEY);
+
     try {
       await fetch('/api/admin/reset', { method: 'POST' });
-      await fetchCloudData();
-      showToast('Seluruh database berhasil dikembalikan ke pengaturan awal yayasan.', 'info');
-    } catch (err) {
-      setKontenWeb(DEFAULT_KONTEN_WEB);
-      setBerita(DEFAULT_BERITA);
-      setProgram(DEFAULT_PROGRAM);
-      setGaleri(DEFAULT_GALERI);
-      setPengurus(DEFAULT_PENGURUS);
-      setBanks(DEFAULT_BANKS);
-      setPesan(DEFAULT_PESAN);
-      localStorage.removeItem(STORAGE_KEY);
-      showToast('Seluruh data website berhasil dikembalikan ke pengaturan bawaan.', 'info');
+    } catch {}
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await syncLocalToSupabaseClient();
+      } catch (err) {
+        console.warn('Supabase reset sync notice:', err);
+      }
     }
+
+    showToast('Seluruh data website berhasil dikembalikan ke pengaturan bawaan.', 'info');
   };
 
   return (
@@ -833,7 +1344,9 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
         changeAdminPassword,
         exportDataJson,
         importDataJson,
-        resetToDefaults
+        resetToDefaults,
+        fetchCloudData,
+        syncLocalToSupabaseClient,
       }}
     >
       {children}

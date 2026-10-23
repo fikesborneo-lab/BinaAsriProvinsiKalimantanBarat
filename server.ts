@@ -2,7 +2,9 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { createServer as createViteServer } from 'vite';
+
+dotenv.config();
+
 import { GoogleGenAI } from '@google/genai';
 import {
   seedDefaultsIfEmpty,
@@ -34,394 +36,386 @@ import {
   setAdminPassword,
   resetAllDataToDefaults,
   syncLocalToSupabase,
+  saveSupabaseCredentials,
 } from './src/db/repository.ts';
-import { testSupabaseConnection, getSupabaseConfig } from './src/lib/supabase.ts';
-
-dotenv.config();
+import { testSupabaseConnection, getSupabaseConfig, sanitizeSupabaseUrl } from './src/lib/supabase.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-async function startServer() {
-  const app = express();
-  const PORT = parseInt(process.env.PORT || '3000', 10);
-  const isProduction = process.env.NODE_ENV === 'production';
+export const app = express();
 
-  app.use(express.json({ limit: '25mb' }));
+app.use(express.json({ limit: '25mb' }));
 
-  // Seed default data if database is empty on start
-  try {
-    await seedDefaultsIfEmpty();
-  } catch (err) {
-    console.warn('Initial database seed attempt note:', err);
+// CORS & Pre-flight Support for Vercel Serverless & Cross-Origin Calls
+app.use((_req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  if (_req.method === 'OPTIONS') {
+    return res.status(200).end();
   }
+  next();
+});
 
-  // API 1: Bootstrap / Get all current database state
-  app.get('/api/bootstrap', async (_req, res) => {
-    try {
-      const [kontenWeb, beritaList, programsList, galeriList, pengurusList, banksList, pesanList] =
-        await Promise.all([
-          getSiteContent(),
-          getAllBerita(),
-          getAllPrograms(),
-          getAllGaleri(),
-          getAllPengurus(),
-          getAllBanks(),
-          getAllPesan(),
-        ]);
+// API 1: Bootstrap / Get all current database state
+app.get(['/api/bootstrap', '/bootstrap'], async (_req, res) => {
+  try {
+    const [kontenWeb, beritaList, programsList, galeriList, pengurusList, banksList, pesanList] =
+      await Promise.all([
+        getSiteContent(),
+        getAllBerita(),
+        getAllPrograms(),
+        getAllGaleri(),
+        getAllPengurus(),
+        getAllBanks(),
+        getAllPesan(),
+      ]);
 
-      res.json({
+    res.json({
+      success: true,
+      data: {
+        kontenWeb,
+        berita: beritaList,
+        program: programsList,
+        galeri: galeriList,
+        pengurus: pengurusList,
+        banks: banksList,
+        pesan: pesanList,
+      },
+    });
+  } catch (err: any) {
+    console.error('Failed to bootstrap state from database:', err);
+    res.status(500).json({ success: false, error: err.message || 'Database fetch failed' });
+  }
+});
+
+// API 2: Site Content updates (inline editing & section forms)
+app.post(['/api/site-content', '/site-content'], async (req, res) => {
+  try {
+    const { updates } = req.body;
+    if (!updates || typeof updates !== 'object') {
+      return res.status(400).json({ success: false, error: 'Invalid updates payload' });
+    }
+    await bulkUpdateSiteContent(updates);
+    const updatedKonten = await getSiteContent();
+    res.json({ success: true, kontenWeb: updatedKonten });
+  } catch (err: any) {
+    console.error('Failed to update site content:', err);
+    res.status(500).json({ success: false, error: err.message || 'Update failed' });
+  }
+});
+
+// API 3: Berita CRUD
+app.get(['/api/berita', '/berita'], async (_req, res) => {
+  try {
+    const items = await getAllBerita();
+    res.json({ success: true, items });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post(['/api/berita', '/berita'], async (req, res) => {
+  try {
+    const item = await createBerita(req.body);
+    const all = await getAllBerita();
+    res.json({ success: true, item, all });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put(['/api/berita/:id', '/berita/:id'], async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const item = await updateBeritaItem({ ...req.body, id });
+    const all = await getAllBerita();
+    res.json({ success: true, item, all });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete(['/api/berita/:id', '/berita/:id'], async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    await deleteBeritaItem(id);
+    const all = await getAllBerita();
+    res.json({ success: true, all });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// API 4: Programs CRUD
+app.get(['/api/programs', '/programs'], async (_req, res) => {
+  try {
+    const items = await getAllPrograms();
+    res.json({ success: true, items });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post(['/api/programs', '/programs'], async (req, res) => {
+  try {
+    const item = await createProgram(req.body);
+    const all = await getAllPrograms();
+    res.json({ success: true, item, all });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put(['/api/programs/:id', '/programs/:id'], async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const item = await updateProgramItem({ ...req.body, id });
+    const all = await getAllPrograms();
+    res.json({ success: true, item, all });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete(['/api/programs/:id', '/programs/:id'], async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    await deleteProgramItem(id);
+    const all = await getAllPrograms();
+    res.json({ success: true, all });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// API 5: Galeri CRUD
+app.get(['/api/galeri', '/galeri'], async (_req, res) => {
+  try {
+    const items = await getAllGaleri();
+    res.json({ success: true, items });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post(['/api/galeri', '/galeri'], async (req, res) => {
+  try {
+    const item = await createGaleri(req.body);
+    const all = await getAllGaleri();
+    res.json({ success: true, item, all });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete(['/api/galeri/:id', '/galeri/:id'], async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    await deleteGaleriItem(id);
+    const all = await getAllGaleri();
+    res.json({ success: true, all });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// API 6: Pengurus CRUD
+app.get(['/api/pengurus', '/pengurus'], async (_req, res) => {
+  try {
+    const items = await getAllPengurus();
+    res.json({ success: true, items });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post(['/api/pengurus', '/pengurus'], async (req, res) => {
+  try {
+    const item = await createPengurus(req.body);
+    const all = await getAllPengurus();
+    res.json({ success: true, item, all });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put(['/api/pengurus/:id', '/pengurus/:id'], async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const item = await updatePengurusItem({ ...req.body, id });
+    const all = await getAllPengurus();
+    res.json({ success: true, item, all });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete(['/api/pengurus/:id', '/pengurus/:id'], async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    await deletePengurusItem(id);
+    const all = await getAllPengurus();
+    res.json({ success: true, all });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// API 7: Banks CRUD
+app.get(['/api/banks', '/banks'], async (_req, res) => {
+  try {
+    const items = await getAllBanks();
+    res.json({ success: true, items });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post(['/api/banks', '/banks'], async (req, res) => {
+  try {
+    const item = await createBank(req.body);
+    const all = await getAllBanks();
+    res.json({ success: true, item, all });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put(['/api/banks/:id', '/banks/:id'], async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const item = await updateBankItem({ ...req.body, id });
+    const all = await getAllBanks();
+    res.json({ success: true, item, all });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete(['/api/banks/:id', '/banks/:id'], async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    await deleteBankItem(id);
+    const all = await getAllBanks();
+    res.json({ success: true, all });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// API 8: Pesan CRUD
+app.get(['/api/pesan', '/pesan'], async (_req, res) => {
+  try {
+    const items = await getAllPesan();
+    res.json({ success: true, items });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post(['/api/pesan', '/pesan'], async (req, res) => {
+  try {
+    const item = await createPesan(req.body);
+    const all = await getAllPesan();
+    res.json({ success: true, item, all });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete(['/api/pesan/:id', '/pesan/:id'], async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    await deletePesanItem(id);
+    const all = await getAllPesan();
+    res.json({ success: true, all });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// API 9: Admin Auth & Password
+app.post(['/api/admin/login', '/admin/login'], async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const validPassword = await getAdminPassword();
+    if ((username === 'admin' || username === 'yayasan') && password === validPassword) {
+      return res.json({
         success: true,
-        data: {
-          kontenWeb,
-          berita: beritaList,
-          program: programsList,
-          galeri: galeriList,
-          pengurus: pengurusList,
-          banks: banksList,
-          pesan: pesanList,
+        user: {
+          username,
+          nama: 'Administrator Yayasan Bina Asri',
+          role: 'Super Admin',
         },
+        token: `token_${Date.now()}_secure`,
+        loginTime: new Date().toLocaleString('id-ID'),
       });
-    } catch (err: any) {
-      console.error('Failed to bootstrap state from database:', err);
-      res.status(500).json({ success: false, error: err.message || 'Database fetch failed' });
     }
-  });
+    return res.status(401).json({ success: false, message: 'Username atau kata sandi salah!' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message || 'Login error' });
+  }
+});
 
-  // API 2: Site Content updates (inline editing & section forms)
-  app.post('/api/site-content', async (req, res) => {
-    try {
-      const { updates } = req.body;
-      if (!updates || typeof updates !== 'object') {
-        return res.status(400).json({ success: false, error: 'Invalid updates payload' });
-      }
-      await bulkUpdateSiteContent(updates);
-      const updatedKonten = await getSiteContent();
-      res.json({ success: true, kontenWeb: updatedKonten });
-    } catch (err: any) {
-      console.error('Failed to update site content:', err);
-      res.status(500).json({ success: false, error: err.message || 'Update failed' });
+app.post(['/api/admin/change-password', '/admin/change-password'], async (req, res) => {
+  try {
+    const { oldPass, newPass } = req.body;
+    const currentPass = await getAdminPassword();
+    if (oldPass !== currentPass) {
+      return res.status(400).json({ success: false, message: 'Kata sandi lama tidak sesuai!' });
     }
-  });
-
-  // API 3: Berita CRUD
-  app.get('/api/berita', async (_req, res) => {
-    try {
-      const items = await getAllBerita();
-      res.json({ success: true, items });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
+    if (!newPass || newPass.length < 5) {
+      return res.status(400).json({ success: false, message: 'Kata sandi baru minimal 5 karakter!' });
     }
-  });
+    await setAdminPassword(newPass);
+    res.json({ success: true, message: 'Kata sandi admin berhasil diperbarui di database!' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message || 'Gagal mengubah kata sandi' });
+  }
+});
 
-  app.post('/api/berita', async (req, res) => {
-    try {
-      const item = await createBerita(req.body);
-      const all = await getAllBerita();
-      res.json({ success: true, item, all });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
+// API 10: Reset & Import
+app.post(['/api/admin/reset', '/admin/reset'], async (_req, res) => {
+  try {
+    await resetAllDataToDefaults();
+    res.json({ success: true, message: 'Data berhasil direset ke standar database yayasan.' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// API 11: Free AI News Generator (Gemini 3.8 Flash + Intelligent Fallback)
+app.post(['/api/ai/generate-berita', '/ai/generate-berita'], async (req, res) => {
+  try {
+    const { topic, category = 'Sosial', cabang = 'Provinsi Kalimantan Barat', tone = 'Inspiratif & Resmi' } = req.body;
+    if (!topic || typeof topic !== 'string' || topic.trim().length === 0) {
+      return res.status(400).json({ success: false, error: 'Topik berita wajib diisi' });
     }
-  });
 
-  app.put('/api/berita/:id', async (req, res) => {
-    try {
-      const id = parseInt(req.params.id, 10);
-      const item = await updateBeritaItem({ ...req.body, id });
-      const all = await getAllBerita();
-      res.json({ success: true, item, all });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
+    const today = new Date();
+    const options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' };
+    const formattedDate = today.toLocaleDateString('id-ID', options);
+    const rawDateStr = today.toISOString().split('T')[0];
 
-  app.delete('/api/berita/:id', async (req, res) => {
-    try {
-      const id = parseInt(req.params.id, 10);
-      await deleteBeritaItem(id);
-      const all = await getAllBerita();
-      res.json({ success: true, all });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
+    const defaultImages: Record<string, string> = {
+      'Sosial': 'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=1200&auto=format&fit=crop&q=80',
+      'Pendidikan': 'https://images.unsplash.com/photo-1577896851231-70ef18881754?w=1200&auto=format&fit=crop&q=80',
+      'Pemberdayaan': 'https://images.unsplash.com/photo-1593113598332-cd288d649433?w=1200&auto=format&fit=crop&q=80',
+      'Kesehatan': 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=1200&auto=format&fit=crop&q=80',
+      'Dakwah': 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?w=1200&auto=format&fit=crop&q=80',
+      'Umum': 'https://images.unsplash.com/photo-1469571486292-0ba58a3f068b?w=1200&auto=format&fit=crop&q=80',
+    };
+    const selectedFallbackImage = defaultImages[category] || defaultImages['Sosial'];
 
-  // API 4: Programs CRUD
-  app.get('/api/programs', async (_req, res) => {
-    try {
-      const items = await getAllPrograms();
-      res.json({ success: true, items });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
+    let generatedArticle = null;
 
-  app.post('/api/programs', async (req, res) => {
-    try {
-      const item = await createProgram(req.body);
-      const all = await getAllPrograms();
-      res.json({ success: true, item, all });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  app.put('/api/programs/:id', async (req, res) => {
-    try {
-      const id = parseInt(req.params.id, 10);
-      const item = await updateProgramItem({ ...req.body, id });
-      const all = await getAllPrograms();
-      res.json({ success: true, item, all });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  app.delete('/api/programs/:id', async (req, res) => {
-    try {
-      const id = parseInt(req.params.id, 10);
-      await deleteProgramItem(id);
-      const all = await getAllPrograms();
-      res.json({ success: true, all });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  // API 5: Galeri CRUD
-  app.get('/api/galeri', async (_req, res) => {
-    try {
-      const items = await getAllGaleri();
-      res.json({ success: true, items });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  app.post('/api/galeri', async (req, res) => {
-    try {
-      const item = await createGaleri(req.body);
-      const all = await getAllGaleri();
-      res.json({ success: true, item, all });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  app.delete('/api/galeri/:id', async (req, res) => {
-    try {
-      const id = parseInt(req.params.id, 10);
-      await deleteGaleriItem(id);
-      const all = await getAllGaleri();
-      res.json({ success: true, all });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  // API 6: Pengurus CRUD
-  app.get('/api/pengurus', async (_req, res) => {
-    try {
-      const items = await getAllPengurus();
-      res.json({ success: true, items });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  app.post('/api/pengurus', async (req, res) => {
-    try {
-      const item = await createPengurus(req.body);
-      const all = await getAllPengurus();
-      res.json({ success: true, item, all });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  app.put('/api/pengurus/:id', async (req, res) => {
-    try {
-      const id = parseInt(req.params.id, 10);
-      const item = await updatePengurusItem({ ...req.body, id });
-      const all = await getAllPengurus();
-      res.json({ success: true, item, all });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  app.delete('/api/pengurus/:id', async (req, res) => {
-    try {
-      const id = parseInt(req.params.id, 10);
-      await deletePengurusItem(id);
-      const all = await getAllPengurus();
-      res.json({ success: true, all });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  // API 7: Banks CRUD
-  app.get('/api/banks', async (_req, res) => {
-    try {
-      const items = await getAllBanks();
-      res.json({ success: true, items });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  app.post('/api/banks', async (req, res) => {
-    try {
-      const item = await createBank(req.body);
-      const all = await getAllBanks();
-      res.json({ success: true, item, all });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  app.put('/api/banks/:id', async (req, res) => {
-    try {
-      const id = parseInt(req.params.id, 10);
-      const item = await updateBankItem({ ...req.body, id });
-      const all = await getAllBanks();
-      res.json({ success: true, item, all });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  app.delete('/api/banks/:id', async (req, res) => {
-    try {
-      const id = parseInt(req.params.id, 10);
-      await deleteBankItem(id);
-      const all = await getAllBanks();
-      res.json({ success: true, all });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  // API 8: Pesan CRUD
-  app.get('/api/pesan', async (_req, res) => {
-    try {
-      const items = await getAllPesan();
-      res.json({ success: true, items });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  app.post('/api/pesan', async (req, res) => {
-    try {
-      const item = await createPesan(req.body);
-      const all = await getAllPesan();
-      res.json({ success: true, item, all });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  app.delete('/api/pesan/:id', async (req, res) => {
-    try {
-      const id = parseInt(req.params.id, 10);
-      await deletePesanItem(id);
-      const all = await getAllPesan();
-      res.json({ success: true, all });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  // API 9: Admin Auth & Password
-  app.post('/api/admin/login', async (req, res) => {
-    try {
-      const { username, password } = req.body;
-      const validPassword = await getAdminPassword();
-
-      if ((username === 'admin' || username === 'yayasan') && password === validPassword) {
-        return res.json({
-          success: true,
-          user: {
-            username,
-            nama: 'Administrator Yayasan Bina Asri',
-            role: 'Super Admin',
-          },
-          token: `token_${Date.now()}_secure`,
-          loginTime: new Date().toLocaleString('id-ID'),
-        });
-      }
-      return res.status(401).json({ success: false, message: 'Username atau kata sandi salah!' });
-    } catch (err: any) {
-      res.status(500).json({ success: false, message: err.message || 'Login error' });
-    }
-  });
-
-  app.post('/api/admin/change-password', async (req, res) => {
-    try {
-      const { oldPass, newPass } = req.body;
-      const currentPass = await getAdminPassword();
-
-      if (oldPass !== currentPass) {
-        return res.status(400).json({ success: false, message: 'Kata sandi lama tidak sesuai!' });
-      }
-      if (!newPass || newPass.length < 5) {
-        return res.status(400).json({ success: false, message: 'Kata sandi baru minimal 5 karakter!' });
-      }
-
-      await setAdminPassword(newPass);
-      res.json({ success: true, message: 'Kata sandi admin berhasil diperbarui di database!' });
-    } catch (err: any) {
-      res.status(500).json({ success: false, message: err.message || 'Gagal mengubah kata sandi' });
-    }
-  });
-
-  // API 10: Reset & Import
-  app.post('/api/admin/reset', async (_req, res) => {
-    try {
-      await resetAllDataToDefaults();
-      res.json({ success: true, message: 'Data berhasil direset ke standar database yayasan.' });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  // API 11: Free AI News Generator (Gemini 3.8 Flash + Intelligent Fallback)
-  app.post('/api/ai/generate-berita', async (req, res) => {
-    try {
-      const { topic, category = 'Sosial', cabang = 'Provinsi Kalimantan Barat', tone = 'Inspiratif & Resmi' } = req.body;
-
-      if (!topic || typeof topic !== 'string' || topic.trim().length === 0) {
-        return res.status(400).json({ success: false, error: 'Topik berita wajib diisi' });
-      }
-
-      const today = new Date();
-      const options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' };
-      const formattedDate = today.toLocaleDateString('id-ID', options);
-      const rawDateStr = today.toISOString().split('T')[0];
-
-      // Curated imagery by category
-      const defaultImages: Record<string, string> = {
-        'Sosial': 'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=1200&auto=format&fit=crop&q=80',
-        'Pendidikan': 'https://images.unsplash.com/photo-1577896851231-70ef18881754?w=1200&auto=format&fit=crop&q=80',
-        'Pemberdayaan': 'https://images.unsplash.com/photo-1593113598332-cd288d649433?w=1200&auto=format&fit=crop&q=80',
-        'Kesehatan': 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=1200&auto=format&fit=crop&q=80',
-        'Dakwah': 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?w=1200&auto=format&fit=crop&q=80',
-        'Umum': 'https://images.unsplash.com/photo-1469571486292-0ba58a3f068b?w=1200&auto=format&fit=crop&q=80',
-      };
-
-      const selectedFallbackImage = defaultImages[category] || defaultImages['Sosial'];
-
-      let generatedArticle = null;
-
-      // Try Gemini 3.8 Flash (Free tier / standard API key)
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (apiKey) {
-        try {
-          const ai = new GoogleGenAI();
-          const prompt = `Anda adalah redaktur jurnalis profesional Yayasan Bina Asri Provinsi Kalimantan Barat.
-Tuliskan naskah berita kegiatan yayasan yang kredibel, menyentuh, santun, dan islami berdasarkan parameter berikut:
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (apiKey) {
+      try {
+        const ai = new GoogleGenAI();
+        const prompt = `Anda adalah redaktur jurnalis profesional Yayasan Bina Asri Provinsi Kalimantan Barat. Tuliskan naskah berita kegiatan yayasan yang kredibel, menyentuh, santun, dan islami berdasarkan parameter berikut:
 - Topik Kegiatan: "${topic.trim()}"
 - Kategori Program: "${category}"
 - Lokasi / Cabang: "${cabang}"
@@ -438,114 +432,149 @@ Berikan respon HANYA dalam format JSON murni (tanpa markdown blok tambahan) deng
   "tags": ["tag1", "tag2", "tag3"]
 }`;
 
-          const response = await ai.models.generateContent({
-            model: 'gemini-3.8-flash',
-            contents: prompt,
-            config: {
-              responseMimeType: 'application/json',
-            },
-          });
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+          },
+        });
 
-          const text = response.text?.trim();
-          if (text) {
-            try {
-              const cleanJson = text.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
-              const parsed = JSON.parse(cleanJson);
-              if (parsed.judul && parsed.konten) {
-                generatedArticle = {
-                  judul: parsed.judul,
-                  kategori: parsed.kategori || category,
-                  ringkasan: parsed.ringkasan || (parsed.konten.substring(0, 140) + '...'),
-                  konten: parsed.konten,
-                  gambar: parsed.gambar && parsed.gambar.startsWith('http') ? parsed.gambar : selectedFallbackImage,
-                  rawTanggal: rawDateStr,
-                  tanggal: formattedDate,
-                  tags: Array.isArray(parsed.tags) ? parsed.tags : [category, cabang, 'Yayasan Bina Asri'],
-                };
-              }
-            } catch (jsonErr) {
-              console.warn('AI response was not valid JSON, using template fallback:', jsonErr);
+        const text = response.text?.trim();
+        if (text) {
+          try {
+            const cleanJson = text.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+            const parsed = JSON.parse(cleanJson);
+            if (parsed.judul && parsed.konten) {
+              generatedArticle = {
+                judul: parsed.judul,
+                kategori: parsed.kategori || category,
+                ringkasan: parsed.ringkasan || (parsed.konten.substring(0, 140) + '...'),
+                konten: parsed.konten,
+                gambar: parsed.gambar && parsed.gambar.startsWith('http') ? parsed.gambar : selectedFallbackImage,
+                rawTanggal: rawDateStr,
+                tanggal: formattedDate,
+                tags: Array.isArray(parsed.tags) ? parsed.tags : [category, cabang, 'Yayasan Bina Asri'],
+              };
             }
+          } catch (jsonErr) {
+            console.warn('AI response was not valid JSON, using template fallback:', jsonErr);
           }
-        } catch (apiErr: any) {
-          console.warn('Gemini generateContent notice (falling back gracefully):', apiErr.message);
         }
+      } catch (apiErr: any) {
+        console.warn('Gemini generateContent notice (falling back gracefully):', apiErr.message);
       }
-
-      // Intelligent deterministic fallback if API is unreachable or key not set
-      if (!generatedArticle) {
-        const cleanTopic = topic.trim();
-        const judulFallback = `${cleanTopic} - Yayasan Bina Asri ${cabang}`;
-        const ringkasanFallback = `Yayasan Bina Asri Kalimantan Barat menggelar kegiatan "${cleanTopic}" di wilayah ${cabang} sebagai wujud kepedulian nyata dan pengabdian kepada umat.`;
-        const kontenFallback = `KALIMANTAN BARAT — Yayasan Bina Asri Provinsi Kalimantan Barat kembali mempertegas komitmennya dalam menebar maslahat bagi masyarakat. Bertempat di wilayah ${cabang}, yayasan menyelenggarakan program "${cleanTopic}" yang dihadiri oleh jajaran pengurus, relawan, dan para penerima manfaat setempat.
-
-Ketua Cabang Yayasan Bina Asri ${cabang} dalam sambutannya menyampaikan rasa syukur dan terima kasih mendalam kepada para muhsinin, donatur, dan masyarakat yang senantiasa menitipkan amanah kebaikan melalui yayasan. "Setiap butir kebaikan yang disalurkan hari ini adalah titipan doa dan harapan saudara-saudara kita. Semoga ikhtiar ini menjadi ladang pahala jariyah bagi kita semua," ungkapnya.
-
-Kegiatan berlangsung dengan penuh kehangatan dan khidmat. Para penerima manfaat mengungkapkan rasa haru atas kehadiran Yayasan Bina Asri yang senantiasa hadir merangkul masyarakat di Kalimantan Barat, baik di bidang sosial, pendidikan tahfidz, maupun pemberdayaan ekonomi umat.
-
-Yayasan Bina Asri mengajak seluruh lapisan masyarakat untuk terus bersinergi, menyalurkan infaq, sedekah, dan donasi terbaik demi memperluas jangkauan manfaat program ke pelosok Kalimantan Barat.`;
-
-        generatedArticle = {
-          judul: judulFallback,
-          kategori: category,
-          ringkasan: ringkasanFallback,
-          konten: kontenFallback,
-          gambar: selectedFallbackImage,
-          rawTanggal: rawDateStr,
-          tanggal: formattedDate,
-          tags: [category, cabang, 'Bina Asri'],
-        };
-      }
-
-      res.json({ success: true, article: generatedArticle });
-    } catch (err: any) {
-      console.error('Error generating AI berita:', err);
-      res.status(500).json({ success: false, error: err.message || 'Gagal menghasilkan berita' });
     }
-  });
 
-  // API 12: Supabase Status & Sync Endpoints
-  app.get('/api/supabase/status', async (_req, res) => {
-    try {
-      const config = getSupabaseConfig();
-      const testResult = await testSupabaseConnection();
-      res.json({
-        success: true,
-        isConfigured: config.isConfigured,
-        url: config.url ? config.url.replace(/\.co.*/, '.co') : '',
-        ...testResult,
-      });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
+    if (!generatedArticle) {
+      const cleanTopic = topic.trim();
+      const judulFallback = `${cleanTopic} - Yayasan Bina Asri ${cabang}`;
+      const ringkasanFallback = `Yayasan Bina Asri Kalimantan Barat menggelar kegiatan "${cleanTopic}" di wilayah ${cabang} sebagai wujud kepedulian nyata dan pengabdian kepada umat.`;
+      const kontenFallback = `KALIMANTAN BARAT – Yayasan Bina Asri Provinsi Kalimantan Barat kembali mempertegas komitmennya dalam menebar maslahat bagi masyarakat. Bertempat di wilayah ${cabang}, yayasan menyelenggarakan program "${cleanTopic}" yang dihadiri oleh jajaran pengurus, relawan, dan para penerima manfaat setempat.\n\nKetua Cabang Yayasan Bina Asri ${cabang} dalam sambutannya menyampaikan rasa syukur dan terima kasih mendalam kepada para muhsinin, donatur, dan masyarakat yang senantiasa menitipkan amanah kebaikan melalui yayasan. "Setiap butir kebaikan yang disalurkan hari ini adalah titipan doa dan harapan saudara-saudara kita. Semoga ikhtiar ini menjadi ladang pahala jariyah bagi kita semua," ungkapnya.\n\nKegiatan berlangsung dengan penuh kehangatan dan khidmat. Para penerima manfaat mengungkapkan rasa haru atas kehadiran Yayasan Bina Asri yang senantiasa hadir merangkul masyarakat di Kalimantan Barat, baik di bidang kesehatan, eliminasi TBC, maupun kemanusiaan.\n\nYayasan Bina Asri mengajak seluruh lapisan masyarakat untuk terus bersinergi, menyalurkan infaq, sedekah, dan donasi terbaik demi memperluas jangkauan manfaat program ke pelosok Kalimantan Barat.`;
 
-  app.post('/api/supabase/sync', async (_req, res) => {
-    try {
-      const syncResult = await syncLocalToSupabase();
-      res.json(syncResult);
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
+      generatedArticle = {
+        judul: judulFallback,
+        kategori: category,
+        ringkasan: ringkasanFallback,
+        konten: kontenFallback,
+        gambar: selectedFallbackImage,
+        rawTanggal: rawDateStr,
+        tanggal: formattedDate,
+        tags: [category, cabang, 'Bina Asri'],
+      };
     }
-  });
+
+    res.json({ success: true, article: generatedArticle });
+  } catch (err: any) {
+    console.error('Error generating AI berita:', err);
+    res.status(500).json({ success: false, error: err.message || 'Gagal menghasilkan berita' });
+  }
+});
+
+// API 12: Supabase Status Endpoint
+app.get(['/api/supabase/status', '/supabase/status'], async (_req, res) => {
+  try {
+    const config = getSupabaseConfig();
+    const testResult = await testSupabaseConnection();
+    res.json({
+      success: true,
+      isConfigured: config.isConfigured,
+      url: config.url ? config.url.replace(/\.co.*/, '.co') : '',
+      source: config.source,
+      ...testResult,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// API 13: Save Supabase Credentials from Admin UI
+app.post(['/api/supabase/config', '/supabase/config'], async (req, res) => {
+  try {
+    const { url, key } = req.body;
+    if (!url || !key) {
+      return res.status(400).json({ success: false, error: 'URL dan Key Supabase wajib diisi' });
+    }
+    const cleanUrl = sanitizeSupabaseUrl(url);
+    const cleanKey = key.trim();
+    await saveSupabaseCredentials(cleanUrl, cleanKey);
+    const testResult = await testSupabaseConnection(cleanUrl, cleanKey);
+    res.json({
+      success: true,
+      message: 'Kredensial Supabase berhasil disimpan di server!',
+      testResult,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// API 14: Supabase Sync Endpoint
+app.post(['/api/supabase/sync', '/supabase/sync'], async (_req, res) => {
+  try {
+    const syncResult = await syncLocalToSupabase();
+    res.json(syncResult);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Main Server Startup Function
+export async function startServer() {
+  const PORT = parseInt(process.env.PORT || '3000', 10);
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  // Seed default data if database is empty on start
+  try {
+    await seedDefaultsIfEmpty();
+  } catch (err) {
+    console.warn('Initial database seed attempt note:', err);
+  }
 
   // Serve Frontend
-  if (!isProduction) {
+  if (!isProduction && !process.env.VERCEL) {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
-  } else {
+  } else if (!process.env.VERCEL) {
     app.use(express.static(path.resolve(__dirname, 'dist')));
     app.get('*', (_req, res) => {
       res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Foundation Server started at http://0.0.0.0:${PORT}`);
-  });
+  if (!process.env.VERCEL) {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Foundation Server started at http://0.0.0.0:${PORT}`);
+    });
+  }
 }
 
-startServer();
+export default app;
+
+if (!process.env.VERCEL) {
+  startServer();
+}

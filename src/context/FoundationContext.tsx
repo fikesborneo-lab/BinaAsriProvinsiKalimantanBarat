@@ -20,7 +20,7 @@ import {
   DEFAULT_PESAN,
   DEFAULT_USERS
 } from '../data/defaultData';
-import { getSupabaseClient } from '../lib/supabase';
+import { getSupabaseClient, batchUploadToSupabase } from '../lib/supabase';
 
 export interface ToastMessage {
   id: string;
@@ -114,7 +114,16 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed.kontenWeb) return { ...DEFAULT_KONTEN_WEB, ...parsed.kontenWeb };
+        if (parsed.kontenWeb) {
+          const merged = { ...DEFAULT_KONTEN_WEB, ...parsed.kontenWeb };
+          if (merged.brand_sub && merged.brand_sub.toUpperCase().includes('PROVINSI')) {
+            merged.brand_sub = merged.brand_sub.replace(/PROVINSI\s*/gi, '').trim();
+          }
+          if (merged.footer_copyright && merged.footer_copyright.includes('Provinsi')) {
+            merged.footer_copyright = merged.footer_copyright.replace(/Provinsi\s*/gi, '').trim();
+          }
+          return merged;
+        }
       }
     } catch (e) {
       console.warn('Storage read error', e);
@@ -240,7 +249,16 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
         const json = await res.json();
         if (json.success && json.data) {
           const d = json.data;
-          if (d.kontenWeb) setKontenWeb(d.kontenWeb);
+          if (d.kontenWeb) {
+            const clean = { ...d.kontenWeb };
+            if (clean.brand_sub && clean.brand_sub.toUpperCase().includes('PROVINSI')) {
+              clean.brand_sub = clean.brand_sub.replace(/PROVINSI\s*/gi, '').trim();
+            }
+            if (clean.footer_copyright && clean.footer_copyright.includes('Provinsi')) {
+              clean.footer_copyright = clean.footer_copyright.replace(/Provinsi\s*/gi, '').trim();
+            }
+            setKontenWeb(clean);
+          }
           if (Array.isArray(d.berita)) setBerita(d.berita);
           if (Array.isArray(d.program)) setProgram(d.program);
           if (Array.isArray(d.galeri)) setGaleri(d.galeri);
@@ -284,6 +302,12 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
           if (!resContent.error && resContent.data && resContent.data.length > 0) {
             const map: Record<string, string> = {};
             resContent.data.forEach((r: any) => { map[r.key] = r.value; });
+            if (map.brand_sub && map.brand_sub.toUpperCase().includes('PROVINSI')) {
+              map.brand_sub = map.brand_sub.replace(/PROVINSI\s*/gi, '').trim();
+            }
+            if (map.footer_copyright && map.footer_copyright.includes('Provinsi')) {
+              map.footer_copyright = map.footer_copyright.replace(/Provinsi\s*/gi, '').trim();
+            }
             setKontenWeb((prev) => ({ ...prev, ...map }));
           }
           if (!resBerita.error && resBerita.data && resBerita.data.length > 0) {
@@ -1242,7 +1266,7 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
     const supabase = getSupabaseClient();
     if (supabase) {
       try {
-        const { data: suUser, error: suErr } = await supabase.from('app_users').select('*').eq('username', u).single();
+        const { data: suUser, error: suErr } = await supabase.from('app_users').select('*').eq('username', u).maybeSingle();
         if (!suErr && suUser && suUser.password === p) {
           if (suUser.status === 'inactive') {
             return { success: false, message: 'Akun Anda dinonaktifkan. Hubungi Super Administrator.' };
@@ -1295,7 +1319,7 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
     let expectedPass = 'admin123';
     if (supabase) {
       try {
-        const { data } = await supabase.from('admin_settings').select('value').eq('key', 'admin_password').single();
+        const { data } = await supabase.from('admin_settings').select('value').eq('key', 'admin_password').maybeSingle();
         if (data && data.value) {
           expectedPass = data.value;
         }
@@ -1389,7 +1413,7 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
     return { success: true, message: 'Password berhasil diperbarui!' };
   };
 
-  // Client-side full sync to Supabase
+  // Client-side full sync to Supabase using batch chunks and Promise.allSettled
   const syncLocalToSupabaseClient = async (): Promise<{
     success: boolean;
     message: string;
@@ -1403,136 +1427,22 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
       };
     }
 
-    const counts: Record<string, number> = {};
-
     try {
-      // 1. Site content
-      const contentRows = Object.entries(kontenWeb).map(([key, value]) => ({
-        key,
-        value: String(value ?? ''),
-        updated_at: new Date().toISOString(),
-      }));
-      if (contentRows.length > 0) {
-        const { error } = await supabase.from('site_content').upsert(contentRows);
-        if (error) throw new Error(`Tabel site_content: ${error.message}`);
-        counts['site_content'] = contentRows.length;
-      }
-
-      // 2. Berita
-      if (berita.length > 0) {
-        const rows = berita.map((b) => ({
-          id: b.id,
-          judul: b.judul,
-          tanggal: b.tanggal,
-          raw_tanggal: b.rawTanggal || b.tanggal,
-          kategori: b.kategori,
-          ringkasan: b.ringkasan,
-          konten: b.konten,
-          gambar: b.gambar,
-        }));
-        const { error } = await supabase.from('berita').upsert(rows);
-        if (error) throw new Error(`Tabel berita: ${error.message}`);
-        counts['berita'] = rows.length;
-      }
-
-      // 3. Programs
-      if (program.length > 0) {
-        const rows = program.map((p) => ({
-          id: p.id,
-          nama: p.nama,
-          deskripsi: p.deskripsi,
-          target: p.target,
-          progress: p.progress,
-        }));
-        const { error } = await supabase.from('programs').upsert(rows);
-        if (error) throw new Error(`Tabel programs: ${error.message}`);
-        counts['programs'] = rows.length;
-      }
-
-      // 4. Galeri
-      if (galeri.length > 0) {
-        const rows = galeri.map((g) => ({
-          id: g.id,
-          judul: g.judul,
-          gambar: g.gambar,
-        }));
-        const { error } = await supabase.from('galeri').upsert(rows);
-        if (error) throw new Error(`Tabel galeri: ${error.message}`);
-        counts['galeri'] = rows.length;
-      }
-
-      // 5. Pengurus
-      if (pengurus.length > 0) {
-        const rows = pengurus.map((pg) => ({
-          id: pg.id,
-          nama: pg.nama,
-          jabatan: pg.jabatan,
-          foto: pg.foto,
-          cabang: pg.cabang,
-          kontak: pg.kontak || '',
-        }));
-        const { error } = await supabase.from('pengurus').upsert(rows);
-        if (error) throw new Error(`Tabel pengurus: ${error.message}`);
-        counts['pengurus'] = rows.length;
-      }
-
-      // 6. Banks
-      if (banks.length > 0) {
-        const rows = banks.map((bk) => ({
-          id: bk.id,
-          bank: bk.bank,
-          badge: bk.badge,
-          norek: bk.norek,
-          an: bk.an,
-        }));
-        const { error } = await supabase.from('banks').upsert(rows);
-        if (error) throw new Error(`Tabel banks: ${error.message}`);
-        counts['banks'] = rows.length;
-      }
-
-      // 7. Pesan
-      if (pesan.length > 0) {
-        const rows = pesan.map((ps) => ({
-          id: ps.id,
-          timestamp: ps.timestamp,
-          nama: ps.nama,
-          email: ps.email || '',
-          telepon: ps.telepon,
-          subjek: ps.subjek,
-          pesan: ps.pesan,
-        }));
-        const { error } = await supabase.from('pesan').upsert(rows);
-        if (error) {
-          const isFetchErr = error.message?.includes('fetch') || error.message?.includes('network');
-          throw new Error(isFetchErr ? 'Koneksi ke Supabase gagal (Failed to fetch). Proyek Supabase kemungkinan sedang PAUSED di app.supabase.com atau URL tidak terjangkau.' : `Tabel pesan: ${error.message}`);
-        }
-        counts['pesan'] = rows.length;
-      }
-
-      // 8. App Users (RBAC)
-      if (users.length > 0) {
-        const userRows = users.map((u) => ({
-          id: u.id,
-          username: u.username,
-          password: u.password,
-          nama: u.nama,
-          role: u.role,
-          email: u.email || '',
-          status: u.status,
-          created_at: u.createdAt,
-        }));
-        try {
-          const { error: errUsers } = await supabase.from('app_users').upsert(userRows);
-          if (!errUsers) {
-            counts['app_users'] = userRows.length;
-          }
-        } catch {}
-      }
+      const syncResult = await batchUploadToSupabase(supabase, {
+        kontenWeb,
+        berita,
+        program,
+        galeri,
+        pengurus,
+        banks,
+        pesan,
+        users,
+      });
 
       return {
-        success: true,
-        message: 'Seluruh data Yayasan berhasil disinkronkan ke Supabase!',
-        counts,
+        success: syncResult.success,
+        message: syncResult.message,
+        counts: syncResult.counts,
       };
     } catch (err: any) {
       const msg = err.message || '';

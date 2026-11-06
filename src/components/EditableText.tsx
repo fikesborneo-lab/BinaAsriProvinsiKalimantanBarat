@@ -18,13 +18,20 @@ export const EditableText: React.FC<EditableTextProps> = ({
   prefix = ''
 }) => {
   const { kontenWeb, directEditMode, adminSession, updateDirectField } = useFoundation();
-  const value = (kontenWeb[contentKey] as string) || '';
+  let value = (kontenWeb[contentKey] as string) || '';
+  if (contentKey === 'brand_sub' && value.toUpperCase().includes('PROVINSI')) {
+    value = value.replace(/PROVINSI\s*/gi, '').trim();
+  }
   const ref = useRef<HTMLDivElement>(null);
   const [localVal, setLocalVal] = useState(value);
 
   useEffect(() => {
-    setLocalVal(value);
-  }, [value]);
+    let clean = value;
+    if (contentKey === 'brand_sub' && clean.toUpperCase().includes('PROVINSI')) {
+      clean = clean.replace(/PROVINSI\s*/gi, '').trim();
+    }
+    setLocalVal(clean);
+  }, [value, contentKey]);
 
   const canEdit = Boolean(adminSession && directEditMode);
 

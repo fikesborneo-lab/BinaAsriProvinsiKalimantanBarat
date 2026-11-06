@@ -18,7 +18,7 @@ export const AiBeritaGeneratorModal: React.FC<AiBeritaGeneratorModalProps> = ({
 
   const [topic, setTopic] = useState('');
   const [category, setCategory] = useState('Sosial');
-  const [cabang, setCabang] = useState('Provinsi Kalimantan Barat');
+  const [cabang, setCabang] = useState('Kalimantan Barat (Pusat)');
   const [tone, setTone] = useState('Inspiratif & Resmi');
   const [loading, setLoading] = useState(false);
   const [generatedArticle, setGeneratedArticle] = useState<{
@@ -44,7 +44,7 @@ export const AiBeritaGeneratorModal: React.FC<AiBeritaGeneratorModalProps> = ({
   ];
 
   const cabangOptions = [
-    'Provinsi Kalimantan Barat (Pusat)',
+    'Kalimantan Barat (Pusat)',
     'Kota Pontianak',
     'Kabupaten Kubu Raya',
     'Kabupaten Mempawah',

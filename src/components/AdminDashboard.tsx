@@ -61,6 +61,7 @@ import {
   saveClientSupabaseConfig,
   clearClientSupabaseConfig,
   sanitizeSupabaseUrl,
+  sanitizeSupabaseCredentials,
 } from '../lib/supabase.ts';
 
 interface AdminDashboardProps {
@@ -314,21 +315,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       tableCounts: prev?.tableCounts ?? {},
     }));
 
-    const urlToTest = overrideUrl ?? supabaseInputUrl;
-    const keyToTest = overrideKey ?? supabaseInputKey;
+    const sanitized = sanitizeSupabaseCredentials(overrideUrl ?? supabaseInputUrl, overrideKey ?? supabaseInputKey);
+    const cleanUrl = sanitized.url;
+    const cleanKey = sanitized.key;
 
-    // 1. Try server endpoint
+    if (cleanUrl && cleanUrl !== supabaseInputUrl) {
+      setSupabaseInputUrl(cleanUrl);
+    }
+    if (cleanKey && cleanKey !== supabaseInputKey) {
+      setSupabaseInputKey(cleanKey);
+    }
+
+    // 1. Try server endpoint with query parameters
     try {
-      const res = await fetch('/api/supabase/status');
+      const queryParams = cleanUrl && cleanKey ? `?url=${encodeURIComponent(cleanUrl)}&key=${encodeURIComponent(cleanKey)}` : '';
+      const res = await fetch(`/api/supabase/status${queryParams}`);
       const isJson = res.headers.get('content-type')?.includes('application/json');
       if (res.ok && isJson) {
         const data = await res.json();
         setSupabaseStatus({
           loading: false,
-          isConfigured: Boolean(data.isConfigured || (urlToTest && keyToTest)),
+          isConfigured: Boolean(data.isConfigured || (cleanUrl && cleanKey)),
           connected: Boolean(data.connected),
           message: data.message || 'Status Supabase dicek.',
-          url: data.url || (urlToTest ? sanitizeSupabaseUrl(urlToTest) : ''),
+          url: cleanUrl || (data.url ? sanitizeSupabaseUrl(data.url) : ''),
           tableCounts: data.tableCounts || {},
           missingTables: data.missingTables || [],
           diagnostic: data.diagnostic,
@@ -339,13 +349,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     // 2. Client-side direct test (works even on static Vercel!)
     try {
-      const testResult = await testSupabaseConnection(urlToTest, keyToTest);
+      const testResult = await testSupabaseConnection(cleanUrl, cleanKey);
       setSupabaseStatus({
         loading: false,
-        isConfigured: Boolean(urlToTest && keyToTest),
+        isConfigured: Boolean(cleanUrl && cleanKey),
         connected: testResult.connected,
         message: testResult.message,
-        url: urlToTest ? sanitizeSupabaseUrl(urlToTest) : '',
+        url: cleanUrl || (testResult.url ? sanitizeSupabaseUrl(testResult.url) : ''),
         tableCounts: testResult.tableCounts || {},
         missingTables: testResult.missingTables || [],
         diagnostic: testResult.diagnostic,
@@ -356,6 +366,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         isConfigured: false,
         connected: false,
         message: `Gagal memeriksa koneksi: ${err.message}`,
+        url: cleanUrl,
         diagnostic: 'network_error',
       });
     }
@@ -368,8 +379,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       return;
     }
 
-    const cleanUrl = sanitizeSupabaseUrl(supabaseInputUrl);
-    const cleanKey = supabaseInputKey.trim();
+    const sanitized = sanitizeSupabaseCredentials(supabaseInputUrl, supabaseInputKey);
+    const cleanUrl = sanitized.url;
+    const cleanKey = sanitized.key;
+
+    // Reflect clean values in state
+    setSupabaseInputUrl(cleanUrl);
+    setSupabaseInputKey(cleanKey);
 
     setIsSavingSupabaseConfig(true);
 
@@ -406,8 +422,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     let success = false;
     let msg = '';
 
-    const cleanUrl = sanitizeSupabaseUrl(supabaseInputUrl);
-    const cleanKey = supabaseInputKey.trim();
+    const sanitized = sanitizeSupabaseCredentials(supabaseInputUrl, supabaseInputKey);
+    const cleanUrl = sanitized.url;
+    const cleanKey = sanitized.key;
+
+    if (cleanUrl !== supabaseInputUrl || cleanKey !== supabaseInputKey) {
+      setSupabaseInputUrl(cleanUrl);
+      setSupabaseInputKey(cleanKey);
+    }
 
     // 1. Try server sync endpoint first (runs in Node.js, free of browser CORS limitations)
     try {
@@ -919,7 +941,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Sub-Nama / Provinsi</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Sub-Nama / Wilayah</label>
                     <input
                       type="text"
                       value={formData.brand_sub || ''}
@@ -2096,13 +2118,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <input
                       type="text"
                       value={supabaseInputUrl}
-                      onChange={(e) => setSupabaseInputUrl(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSupabaseInputUrl(val);
+                      }}
+                      onBlur={() => {
+                        if (supabaseInputUrl) {
+                          const sanitized = sanitizeSupabaseCredentials(supabaseInputUrl, supabaseInputKey);
+                          if (sanitized.url !== supabaseInputUrl) setSupabaseInputUrl(sanitized.url);
+                          if (sanitized.key !== supabaseInputKey) setSupabaseInputKey(sanitized.key);
+                        }
+                      }}
                       placeholder="https://xyzabcdefghijklm.supabase.co"
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs text-slate-900 font-mono focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
                       required
                     />
-                    <span className="text-[10px] text-slate-400 block mt-1">
-                      Format: <code>https://&lt;id-proyek&gt;.supabase.co</code> (Bukan URL postgresql://)
+                    <span className="text-[10px] text-slate-500 block mt-1">
+                      Format: <code className="text-emerald-700 font-bold">https://&lt;id-proyek&gt;.supabase.co</code> (Otomatis dibersihkan jika menyalin REST URL /rest/v1)
                     </span>
                   </div>
 
@@ -2114,12 +2146,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       type="password"
                       value={supabaseInputKey}
                       onChange={(e) => setSupabaseInputKey(e.target.value)}
+                      onBlur={() => {
+                        if (supabaseInputKey) {
+                          const sanitized = sanitizeSupabaseCredentials(supabaseInputUrl, supabaseInputKey);
+                          if (sanitized.url !== supabaseInputUrl) setSupabaseInputUrl(sanitized.url);
+                          if (sanitized.key !== supabaseInputKey) setSupabaseInputKey(sanitized.key);
+                        }
+                      }}
                       placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs text-slate-900 font-mono focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
                       required
                     />
-                    <span className="text-[10px] text-slate-400 block mt-1">
-                      Dapatkan dari dashboard Supabase: <strong>Project Settings &gt; API</strong>
+                    <span className="text-[10px] text-slate-500 block mt-1">
+                      Dapatkan dari dashboard Supabase: <strong>Project Settings &gt; API</strong> (Salin <strong>anon public</strong>)
                     </span>
                   </div>
                 </div>
@@ -2414,9 +2453,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      const sqlAll = `BEGIN;
-
--- ====================================================================
+                      const sqlAll = `-- ====================================================================
 -- SKEMA DATABASE RESMI: YAYASAN BINA ASRI KALIMANTAN BARAT
 -- ====================================================================
 
@@ -2560,9 +2597,7 @@ INSERT INTO public.app_users (id, username, password, nama, role, email, status)
 VALUES 
   ('usr_superadmin_01', 'admin', 'admin123', 'Super Administrator Yayasan', 'superadmin', 'admin@binaasrikalbar.org', 'active'),
   ('usr_editor_01', 'editor', 'editor123', 'Staf Editor Konten Web', 'editor', 'redaksi@binaasrikalbar.org', 'active')
-ON CONFLICT (username) DO NOTHING;
-
-COMMIT;`;
+ON CONFLICT (username) DO NOTHING;`;
                       navigator.clipboard.writeText(sqlAll).then(() => {
                         setSqlCopied(true);
                         showToast('Skrip SQL Lengkap berhasil disalin!', 'success');

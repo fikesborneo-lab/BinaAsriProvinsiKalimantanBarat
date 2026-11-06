@@ -8,7 +8,7 @@ export const DAFTAR_CABANG_DAERAH: CabangDaerah[] = [
     id: 'pusat',
     nama: 'Pusat / SR Kalbar',
     tipe: 'Pusat',
-    wilayah: 'Provinsi Kalimantan Barat',
+    wilayah: 'Kalimantan Barat',
     alamat: 'Jl. Prof. Dr. Hamka, Gg. Nilam 3 No. 14, Pontianak Barat 78115',
     telepon: '0821-5219-1199',
     penanggungJawab: 'Dr. Drs. H. Mardjan, M.Kes (Ketua Yayasan)',
@@ -103,7 +103,7 @@ export const DEFAULT_BANKS: BankAccount[] = [
 
 export const DEFAULT_KONTEN_WEB: KontenWeb = {
   brand_name: "YAYASAN BINA ASRI",
-  brand_sub: "PROVINSI KALIMANTAN BARAT",
+  brand_sub: "KALIMANTAN BARAT",
   logo_bulat: LOGO_BULAT,
   logo_persegi: LOGO_PERSEGI,
   top_address: "Jl. Prof. Dr. Hamka, Gg. Nilam 3 No.14, Pontianak Barat 78115",
@@ -129,14 +129,14 @@ export const DEFAULT_KONTEN_WEB: KontenWeb = {
   profil_img: "https://images.unsplash.com/photo-1576765608535-5f04d1e3f289?w=1000",
   profil_legal: "Akta Notaris Mada Reni Damanik, SH, MM No. 55 Th 1999 & SK Menkumham RI No. C-1910 HT.01.02.TH 2007",
   profil_p1: "Pada mulanya, Bina Asri merupakan suatu Klinik Bersalin yang dibangun oleh Bapak Dr. Drs. H. Mardjan, M.Kes pada tahun 2003. Respon masyarakat sangat baik terhadap berdirinya klinik ini, sehingga klinik ini berkembang pesat dan maju. Melihat antusiasme serta kebutuhan layanan yang semakin luas, Beliau akhirnya berkeinginan untuk mengembangkan klinik ini menjadi sebuah Yayasan agar semakin banyak membantu dan melayani masyarakat lebih luas lagi.",
-  profil_p2: "Yayasan Bina Asri didirikan di Pontianak dan disahkan oleh notaris Mada Reni Damanik, SH, MM melalui Akta No. 55 tertanggal 29 Desember 1999 serta dikukuhkan melalui SK Menteri Hukum dan HAM RI No: C-1910 HT.01.02.TH 2007. Saat ini, Yayasan Bina Asri dipercaya mengemban amanah sebagai Sub Recipient (SR) Program Eliminasi TBC di Provinsi Kalimantan Barat yang didanai oleh Global Fund melalui PR Konsorsium Komunitas Penabulu-STPI, membina jejaring di 7 Kabupaten/Kota bersama 791 kader komunitas dan 88 puskesmas mitra.",
+  profil_p2: "Yayasan Bina Asri didirikan di Pontianak dan disahkan oleh notaris Mada Reni Damanik, SH, MM melalui Akta No. 55 tertanggal 29 Desember 1999 serta dikukuhkan melalui SK Menteri Hukum dan HAM RI No: C-1910 HT.01.02.TH 2007. Saat ini, Yayasan Bina Asri dipercaya mengemban amanah sebagai Sub Recipient (SR) Program Eliminasi TBC di Kalimantan Barat yang didanai oleh Global Fund melalui PR Konsorsium Komunitas Penabulu-STPI, membina jejaring di 7 Kabupaten/Kota bersama 791 kader komunitas dan 88 puskesmas mitra.",
   visi_title: "Visi Lembaga",
   visi_text: "Menjadi lembaga terbaik di bidang kesehatan, kemanusiaan dan sosial yang memberikan pelayanan yang berfokus pada masalah TB, Stunting dan Kesehatan Reproduksi dengan cinta kasih untuk mewujudkan masyarakat sehat, sejahtera, dan bermanfaat.",
   misi_title: "Misi Lembaga",
   misi_items: "Memberikan pelayanan kesehatan kepada masyarakat tanpa membedakan suku, agama, ras, dan golongan.\nMembantu masyarakat yang kurang mampu untuk mendapatkan pendidikan dan pengetahuan secara layak melalui program kerjasama.\nMendukung program pemerintah dalam upaya mensejahterakan masyarakat khususnya dalam bidang kesehatan yang berfokus pada masalah TB, Stunting dan Kesehatan Reproduksi.\nMenjalin kerjasama dengan lembaga lain baik dari unsur pemerintah maupun swasta sesuai dengan tujuan program.\nMenanamkan rasa kesatuan dan persatuan dalam keberagaman.",
   program_tag: "Program Kerja Utama",
   program_title: "Aksi Nyata Penanggulangan TBC & Kesehatan Masyarakat",
-  program_desc: "Inisiatif terstruktur Yayasan Bina Asri bersama jejaring faskes dan kader komunitas di seluruh pelosok Provinsi Kalimantan Barat.",
+  program_desc: "Inisiatif terstruktur Yayasan Bina Asri bersama jejaring faskes dan kader komunitas di seluruh pelosok Kalimantan Barat.",
   berita_tag: "Kabar & Publikasi",
   berita_title: "Berita & Dokumentasi Program SR Kalbar",
   berita_desc: "Laporan kegiatan investigasi kontak, pendampingan pasien TBC, advokasi DPPM, dan edukasi kesehatan dari Yayasan Bina Asri.",
@@ -158,7 +158,7 @@ export const DEFAULT_KONTEN_WEB: KontenWeb = {
   kontak_jam: "Senin - Sabtu: 08.00 - 16.30 WIB",
   footer_desc: "Yayasan Bina Asri adalah Sub Recipient (SR) Kalimantan Barat untuk Program Eliminasi TBC di Indonesia. Berkhidmat dalam kesehatan, kemanusiaan, dan kesejahteraan sosial masyarakat.",
   footer_legal: "Akta Notaris Mada Reni Damanik, SH, MM No. 55 / 1999\nSK Kemenkumham RI No. C-1910 HT.01.02.TH 2007\nPortal Resmi: www.binaasrikalbar.com",
-  footer_copyright: "Yayasan Bina Asri Provinsi Kalimantan Barat. Seluruh Hak Cipta Dilindungi."
+  footer_copyright: "Yayasan Bina Asri Kalimantan Barat. Seluruh Hak Cipta Dilindungi."
 };
 
 export const DEFAULT_BERITA: BeritaItem[] = [

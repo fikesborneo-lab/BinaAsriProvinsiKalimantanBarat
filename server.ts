@@ -44,7 +44,7 @@ import {
   syncLocalToSupabase,
   saveSupabaseCredentials,
 } from './src/db/repository.ts';
-import { testSupabaseConnection, getSupabaseConfig, sanitizeSupabaseUrl } from './src/lib/supabase.ts';
+import { testSupabaseConnection, getSupabaseConfig, sanitizeSupabaseUrl, sanitizeSupabaseCredentials } from './src/lib/supabase.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -568,15 +568,17 @@ Berikan respon HANYA dalam format JSON murni (tanpa markdown blok tambahan) deng
 });
 
 // API 12: Supabase Status Endpoint
-app.get(['/api/supabase/status', '/supabase/status'], async (_req, res) => {
+app.all(['/api/supabase/status', '/supabase/status'], async (req, res) => {
   try {
+    const qUrl = req.query.url ? String(req.query.url) : (req.body?.url ? String(req.body.url) : undefined);
+    const qKey = req.query.key ? String(req.query.key) : (req.body?.key ? String(req.body.key) : undefined);
+    const testResult = await testSupabaseConnection(qUrl, qKey);
     const config = getSupabaseConfig();
-    const testResult = await testSupabaseConnection();
     res.json({
       success: true,
-      isConfigured: config.isConfigured,
-      url: config.url ? config.url.replace(/\.co.*/, '.co') : '',
-      source: config.source,
+      isConfigured: testResult.connected || config.isConfigured || Boolean(qUrl && qKey),
+      url: testResult.url || (config.url ? sanitizeSupabaseUrl(config.url) : ''),
+      source: qUrl && qKey ? 'query' : config.source,
       ...testResult,
     });
   } catch (err: any) {
@@ -591,13 +593,13 @@ app.post(['/api/supabase/config', '/supabase/config'], async (req, res) => {
     if (!url || !key) {
       return res.status(400).json({ success: false, error: 'URL dan Key Supabase wajib diisi' });
     }
-    const cleanUrl = sanitizeSupabaseUrl(url);
-    const cleanKey = key.trim();
-    await saveSupabaseCredentials(cleanUrl, cleanKey);
-    const testResult = await testSupabaseConnection(cleanUrl, cleanKey);
+    const sanitized = sanitizeSupabaseCredentials(url, key);
+    await saveSupabaseCredentials(sanitized.url, sanitized.key);
+    const testResult = await testSupabaseConnection(sanitized.url, sanitized.key);
     res.json({
       success: true,
       message: 'Kredensial Supabase berhasil disimpan di server!',
+      url: sanitized.url,
       testResult,
     });
   } catch (err: any) {

@@ -21,7 +21,12 @@ import type {
   PesanItem,
   AppUser,
 } from '../types/index.ts';
-import { getSupabaseClient } from '../lib/supabase.ts';
+import {
+  getSupabaseClient,
+  batchUploadToSupabase,
+  sanitizeSupabaseCredentials,
+  sanitizeSupabaseUrl,
+} from '../lib/supabase.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -72,8 +77,15 @@ function ensureDbLoaded(): DatabaseSchema {
     if (fs.existsSync(DB_FILE_PATH)) {
       const content = fs.readFileSync(DB_FILE_PATH, 'utf-8');
       const parsed = JSON.parse(content);
+      const kontenMerged = { ...DEFAULT_KONTEN_WEB, ...(parsed.kontenWeb || {}) };
+      if (kontenMerged.brand_sub && kontenMerged.brand_sub.toUpperCase().includes('PROVINSI')) {
+        kontenMerged.brand_sub = kontenMerged.brand_sub.replace(/PROVINSI\s*/gi, '').trim();
+      }
+      if (kontenMerged.footer_copyright && kontenMerged.footer_copyright.includes('Provinsi')) {
+        kontenMerged.footer_copyright = kontenMerged.footer_copyright.replace(/Provinsi\s*/gi, '').trim();
+      }
       inMemoryDb = {
-        kontenWeb: { ...DEFAULT_KONTEN_WEB, ...(parsed.kontenWeb || {}) },
+        kontenWeb: kontenMerged,
         berita: Array.isArray(parsed.berita) && parsed.berita.length > 0 ? parsed.berita : [...DEFAULT_BERITA],
         program: Array.isArray(parsed.program) && parsed.program.length > 0 ? parsed.program : [...DEFAULT_PROGRAM],
         galeri: Array.isArray(parsed.galeri) && parsed.galeri.length > 0 ? parsed.galeri : [...DEFAULT_GALERI],
@@ -136,6 +148,12 @@ export async function getSiteContent(): Promise<KontenWeb> {
           contentMap[row.key] = row.value;
         }
         const merged = { ...DEFAULT_KONTEN_WEB, ...contentMap } as KontenWeb;
+        if (merged.brand_sub && merged.brand_sub.toUpperCase().includes('PROVINSI')) {
+          merged.brand_sub = merged.brand_sub.replace(/PROVINSI\s*/gi, '').trim();
+        }
+        if (merged.footer_copyright && merged.footer_copyright.includes('Provinsi')) {
+          merged.footer_copyright = merged.footer_copyright.replace(/Provinsi\s*/gi, '').trim();
+        }
         // Keep local cache synced
         const db = ensureDbLoaded();
         db.kontenWeb = merged;
@@ -910,7 +928,7 @@ export async function verifyUserLogin(username: string, password: string): Promi
   const supabase = getSupabaseClient();
   if (supabase) {
     try {
-      const { data, error } = await supabase.from('app_users').select('*').eq('username', u).single();
+      const { data, error } = await supabase.from('app_users').select('*').eq('username', u).maybeSingle();
       if (!error && data && data.password === p) {
         if (data.status === 'inactive') {
           throw new Error('Akun dinonaktifkan. Hubungi Super Administrator.');
@@ -1014,7 +1032,7 @@ export async function getAdminPassword(): Promise<string> {
   const supabase = getSupabaseClient();
   if (supabase) {
     try {
-      const { data, error } = await supabase.from('admin_settings').select('value').eq('key', 'admin_password').single();
+      const { data, error } = await supabase.from('admin_settings').select('value').eq('key', 'admin_password').maybeSingle();
       if (!error && data && data.value) {
         return data.value;
       }
@@ -1112,176 +1130,42 @@ export async function syncLocalToSupabase(
     persistDbToFile(db);
   }
 
-  const counts: Record<string, number> = {};
-
+  // Use resilient batch upload with Promise.allSettled and chunking
   try {
-    // 1. Site Content
-    const contentRows = Object.entries(db.kontenWeb).map(([key, value]) => ({
-      key,
-      value: String(value ?? ''),
-      updated_at: new Date().toISOString(),
-    }));
-    // 1. Site Content
-    if (contentRows.length > 0) {
-      const { error: errContent } = await supabase.from('site_content').upsert(contentRows);
-      if (errContent) {
-        throw new Error(`Gagal pada tabel site_content: ${errContent.message} (${errContent.code || 'unknown'})`);
-      }
-      counts['site_content'] = contentRows.length;
-    }
-
-    // 2. Berita
-    if (db.berita.length > 0) {
-      const rows = db.berita.map((b) => ({
-        id: b.id,
-        judul: b.judul,
-        tanggal: b.tanggal,
-        raw_tanggal: b.rawTanggal || b.tanggal,
-        kategori: b.kategori,
-        ringkasan: b.ringkasan,
-        konten: b.konten,
-        gambar: b.gambar,
-      }));
-      const { error: errBerita } = await supabase.from('berita').upsert(rows);
-      if (errBerita) {
-        throw new Error(`Gagal pada tabel berita: ${errBerita.message} (${errBerita.code || 'unknown'})`);
-      }
-      counts['berita'] = rows.length;
-    }
-
-    // 3. Programs
-    if (db.program.length > 0) {
-      const rows = db.program.map((p) => ({
-        id: p.id,
-        nama: p.nama,
-        deskripsi: p.deskripsi,
-        target: p.target,
-        progress: p.progress,
-      }));
-      const { error: errProg } = await supabase.from('programs').upsert(rows);
-      if (errProg) {
-        throw new Error(`Gagal pada tabel programs: ${errProg.message} (${errProg.code || 'unknown'})`);
-      }
-      counts['programs'] = rows.length;
-    }
-
-    // 4. Galeri
-    if (db.galeri.length > 0) {
-      const rows = db.galeri.map((g) => ({
-        id: g.id,
-        judul: g.judul,
-        gambar: g.gambar,
-      }));
-      const { error: errGal } = await supabase.from('galeri').upsert(rows);
-      if (errGal) {
-        throw new Error(`Gagal pada tabel galeri: ${errGal.message} (${errGal.code || 'unknown'})`);
-      }
-      counts['galeri'] = rows.length;
-    }
-
-    // 5. Pengurus
-    if (db.pengurus.length > 0) {
-      const rows = db.pengurus.map((peng) => ({
-        id: peng.id,
-        nama: peng.nama,
-        jabatan: peng.jabatan,
-        foto: peng.foto,
-        cabang: peng.cabang,
-        kontak: peng.kontak || '',
-      }));
-      const { error: errPeng } = await supabase.from('pengurus').upsert(rows);
-      if (errPeng) {
-        throw new Error(`Gagal pada tabel pengurus: ${errPeng.message} (${errPeng.code || 'unknown'})`);
-      }
-      counts['pengurus'] = rows.length;
-    }
-
-    // 6. Banks
-    if (db.banks.length > 0) {
-      const rows = db.banks.map((bk) => ({
-        id: bk.id,
-        bank: bk.bank,
-        badge: bk.badge,
-        norek: bk.norek,
-        an: bk.an,
-      }));
-      const { error: errBanks } = await supabase.from('banks').upsert(rows);
-      if (errBanks) {
-        throw new Error(`Gagal pada tabel banks: ${errBanks.message} (${errBanks.code || 'unknown'})`);
-      }
-      counts['banks'] = rows.length;
-    }
-
-    // 7. Pesan
-    if (db.pesan.length > 0) {
-      const rows = db.pesan.map((ps) => ({
-        id: ps.id,
-        timestamp: ps.timestamp,
-        nama: ps.nama,
-        email: ps.email || '',
-        telepon: ps.telepon,
-        subjek: ps.subjek,
-        pesan: ps.pesan,
-      }));
-      const { error: errPesan } = await supabase.from('pesan').upsert(rows);
-      if (errPesan) {
-        throw new Error(`Gagal pada tabel pesan: ${errPesan.message} (${errPesan.code || 'unknown'})`);
-      }
-      counts['pesan'] = rows.length;
-    }
-
-    // 8. Admin Settings
-    const { error: errAdm } = await supabase.from('admin_settings').upsert({
-      key: 'admin_password',
-      value: db.adminPassword,
-      updated_at: new Date().toISOString(),
+    const uploadRes = await batchUploadToSupabase(supabase, {
+      kontenWeb: db.kontenWeb,
+      berita: db.berita,
+      program: db.program,
+      galeri: db.galeri,
+      pengurus: db.pengurus,
+      banks: db.banks,
+      pesan: db.pesan,
+      users: db.users,
     });
-    if (errAdm) {
-      throw new Error(`Gagal pada tabel admin_settings: ${errAdm.message} (${errAdm.code || 'unknown'})`);
-    }
-    counts['admin_settings'] = 1;
-
-    // 9. App Users (RBAC)
-    if (db.users && db.users.length > 0) {
-      const userRows = db.users.map((u) => ({
-        id: u.id,
-        username: u.username,
-        password: u.password,
-        nama: u.nama,
-        role: u.role,
-        email: u.email || '',
-        status: u.status,
-        created_at: u.createdAt,
-      }));
-      try {
-        const { error: errUsers } = await supabase.from('app_users').upsert(userRows);
-        if (!errUsers) {
-          counts['app_users'] = userRows.length;
-        }
-      } catch (e) {
-        console.warn('Note: app_users table might not be created in Supabase yet.');
-      }
-    }
 
     return {
-      success: true,
-      message: 'Seluruh data Yayasan Bina Asri berhasil disinkronkan ke Supabase!',
-      insertedCounts: counts,
+      success: uploadRes.success,
+      message: uploadRes.message,
+      insertedCounts: uploadRes.counts,
     };
   } catch (err: any) {
     return {
       success: false,
-      message: `Sinkronisasi ke Supabase gagal: ${err.message}`,
+      message: `Sinkronisasi ke Supabase gagal: ${err.message || 'Terjadi kesalahan'}`,
     };
   }
 }
 
 // 11. Save Supabase Credentials
 export async function saveSupabaseCredentials(url: string, key: string): Promise<void> {
-  process.env.SUPABASE_URL = url;
-  process.env.SUPABASE_ANON_KEY = key;
-  process.env.VITE_SUPABASE_URL = url;
-  process.env.VITE_SUPABASE_ANON_KEY = key;
+  const sanitized = sanitizeSupabaseCredentials(url, key);
+  const cleanUrl = sanitized.url;
+  const cleanKey = sanitized.key;
+
+  process.env.SUPABASE_URL = cleanUrl;
+  process.env.SUPABASE_ANON_KEY = cleanKey;
+  process.env.VITE_SUPABASE_URL = cleanUrl;
+  process.env.VITE_SUPABASE_ANON_KEY = cleanKey;
 
   // Persist to .env if writable
   try {
@@ -1290,28 +1174,28 @@ export async function saveSupabaseCredentials(url: string, key: string): Promise
     
     // Replace or append SUPABASE_URL
     if (/^SUPABASE_URL=.*$/m.test(envContent)) {
-      envContent = envContent.replace(/^SUPABASE_URL=.*$/m, `SUPABASE_URL="${url}"`);
+      envContent = envContent.replace(/^SUPABASE_URL=.*$/m, `SUPABASE_URL="${cleanUrl}"`);
     } else {
-      envContent += `\nSUPABASE_URL="${url}"`;
+      envContent += `\nSUPABASE_URL="${cleanUrl}"`;
     }
 
     // Replace or append SUPABASE_ANON_KEY
     if (/^SUPABASE_ANON_KEY=.*$/m.test(envContent)) {
-      envContent = envContent.replace(/^SUPABASE_ANON_KEY=.*$/m, `SUPABASE_ANON_KEY="${key}"`);
+      envContent = envContent.replace(/^SUPABASE_ANON_KEY=.*$/m, `SUPABASE_ANON_KEY="${cleanKey}"`);
     } else {
-      envContent += `\nSUPABASE_ANON_KEY="${key}"`;
+      envContent += `\nSUPABASE_ANON_KEY="${cleanKey}"`;
     }
 
     if (/^VITE_SUPABASE_URL=.*$/m.test(envContent)) {
-      envContent = envContent.replace(/^VITE_SUPABASE_URL=.*$/m, `VITE_SUPABASE_URL="${url}"`);
+      envContent = envContent.replace(/^VITE_SUPABASE_URL=.*$/m, `VITE_SUPABASE_URL="${cleanUrl}"`);
     } else {
-      envContent += `\nVITE_SUPABASE_URL="${url}"`;
+      envContent += `\nVITE_SUPABASE_URL="${cleanUrl}"`;
     }
 
     if (/^VITE_SUPABASE_ANON_KEY=.*$/m.test(envContent)) {
-      envContent = envContent.replace(/^VITE_SUPABASE_ANON_KEY=.*$/m, `VITE_SUPABASE_ANON_KEY="${key}"`);
+      envContent = envContent.replace(/^VITE_SUPABASE_ANON_KEY=.*$/m, `VITE_SUPABASE_ANON_KEY="${cleanKey}"`);
     } else {
-      envContent += `\nVITE_SUPABASE_ANON_KEY="${key}"`;
+      envContent += `\nVITE_SUPABASE_ANON_KEY="${cleanKey}"`;
     }
 
     fs.writeFileSync(envPath, envContent.trim() + '\n', 'utf-8');

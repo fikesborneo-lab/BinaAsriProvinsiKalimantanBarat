@@ -1,0 +1,1346 @@
+<!DOCTYPE html>
+<html lang="id" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yayasan Bina Asri Kalimantan Barat</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          colors: {
+            emerald: {
+              850: '#064e3b',
+              950: '#022c22',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .glass-card { background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(10px); }
+    /* Toast transition */
+    #toast-box {
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .modal-backdrop {
+      background-color: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(4px);
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col selection:bg-emerald-600 selection:text-white">
+
+  <!-- ========================================== -->
+  <!-- 1. TOP BAR INFORMASI & KONTAK -->
+  <!-- ========================================== -->
+  <header class="bg-emerald-950 text-emerald-100 text-xs py-2.5 border-b border-emerald-900/80 sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center gap-2">
+      <div class="flex items-center gap-4 flex-wrap justify-center sm:justify-start">
+        <span class="flex items-center gap-1.5">
+          <i class="fa-solid fa-certificate text-emerald-400"></i>
+          <span>SK Kemenkumham:</span>
+          <strong class="text-white" id="top-sk">AHU-0012345.AH.01.04.Tahun 2018</strong>
+        </span>
+        <span class="hidden md:inline text-emerald-800">|</span>
+        <span class="hidden md:flex items-center gap-1.5">
+          <i class="fa-solid fa-location-dot text-emerald-400"></i>
+          <span>Sekretariat Pontianak, Kalbar</span>
+        </span>
+      </div>
+      <div class="flex items-center gap-3">
+        <a id="top-link-wa" href="https://wa.me/6281256789012" target="_blank" class="hover:text-white flex items-center gap-1.5 transition-colors">
+          <i class="fa-brands fa-whatsapp text-emerald-400"></i>
+          <span id="top-phone">0812-5678-9012</span>
+        </a>
+        <span class="text-emerald-800">|</span>
+        <button onclick="openModal('modal-login')" class="px-2.5 py-1 rounded-md bg-emerald-800 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center gap-1.5 transition-all shadow-sm">
+          <i class="fa-solid fa-lock text-[10px]"></i>
+          <span id="btn-login-top-label">Portal Admin</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================== -->
+  <!-- 2. NAVBAR UTAMA DENGAN LOGO & ANCHOR LINKS -->
+  <!-- ========================================== -->
+  <nav class="bg-white/95 backdrop-blur-md border-b border-slate-200 sticky top-8 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center h-20">
+        
+        <!-- LOGO & BRAND -->
+        <a href="#beranda" class="flex items-center gap-3.5 group">
+          <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-800 text-white flex items-center justify-center font-black text-xl shadow-md shadow-emerald-900/10 group-hover:scale-105 transition-transform">
+            <i class="fa-solid fa-hand-holding-heart text-2xl text-emerald-200"></i>
+          </div>
+          <div>
+            <span class="block font-black text-lg sm:text-xl text-slate-900 leading-tight tracking-tight">YAYASAN BINA ASRI</span>
+            <span class="block text-xs font-bold text-emerald-700 tracking-wider">KALIMANTAN BARAT</span>
+          </div>
+        </a>
+
+        <!-- MENU LINK (DESKTOP) -->
+        <div class="hidden lg:flex items-center gap-1 font-semibold text-xs text-slate-600">
+          <a href="#beranda" class="px-3 py-2 rounded-xl hover:text-emerald-700 hover:bg-emerald-50 transition-all font-bold text-slate-800">Beranda</a>
+          <a href="#profil" class="px-3 py-2 rounded-xl hover:text-emerald-700 hover:bg-emerald-50 transition-all">Profil</a>
+          <a href="#program" class="px-3 py-2 rounded-xl hover:text-emerald-700 hover:bg-emerald-50 transition-all">Program Kerja</a>
+          <a href="#berita" class="px-3 py-2 rounded-xl hover:text-emerald-700 hover:bg-emerald-50 transition-all">Berita</a>
+          <a href="#pengurus" class="px-3 py-2 rounded-xl hover:text-emerald-700 hover:bg-emerald-50 transition-all">Pengurus Cabang</a>
+          <a href="#rekening" class="px-3 py-2 rounded-xl hover:text-emerald-700 hover:bg-emerald-50 transition-all">Rekening Donasi</a>
+          <a href="#galeri" class="px-3 py-2 rounded-xl hover:text-emerald-700 hover:bg-emerald-50 transition-all">Galeri</a>
+          <a href="#kontak" class="px-3 py-2 rounded-xl hover:text-emerald-700 hover:bg-emerald-50 transition-all">Kontak</a>
+        </div>
+
+        <!-- ACTION BUTTONS -->
+        <div class="hidden sm:flex items-center gap-2.5">
+          <button onclick="openModal('modal-tbc')" class="px-3.5 py-2.5 rounded-xl border border-teal-200 bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold text-xs flex items-center gap-1.5 transition-all">
+            <i class="fa-solid fa-stethoscope text-teal-600"></i>
+            <span>Skrining TBC</span>
+          </button>
+          <a href="#rekening" class="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold text-xs shadow-md shadow-emerald-900/10 flex items-center gap-2 transition-all hover:shadow-lg">
+            <i class="fa-solid fa-heart text-rose-400"></i>
+            <span>Salurkan Donasi</span>
+          </a>
+        </div>
+
+        <!-- MOBILE MENU TOGGLE -->
+        <div class="lg:hidden flex items-center gap-2">
+          <button onclick="openModal('modal-tbc')" class="sm:hidden px-2.5 py-2 rounded-lg bg-teal-100 text-teal-800 font-bold text-[11px]">
+            <i class="fa-solid fa-stethoscope"></i>
+          </button>
+          <button id="mobile-toggle" onclick="toggleMobileNav()" class="p-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100">
+            <i class="fa-solid fa-bars text-lg"></i>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- MOBILE DROPDOWN -->
+    <div id="mobile-nav" class="hidden lg:hidden border-t border-slate-100 bg-white px-4 pt-3 pb-6 space-y-1 shadow-xl">
+      <a href="#beranda" onclick="toggleMobileNav()" class="block px-3.5 py-2 rounded-xl font-bold text-xs text-slate-700 hover:bg-emerald-50">Beranda</a>
+      <a href="#profil" onclick="toggleMobileNav()" class="block px-3.5 py-2 rounded-xl font-bold text-xs text-slate-700 hover:bg-emerald-50">Profil &amp; Legalitas</a>
+      <a href="#program" onclick="toggleMobileNav()" class="block px-3.5 py-2 rounded-xl font-bold text-xs text-slate-700 hover:bg-emerald-50">Program Kerja</a>
+      <a href="#berita" onclick="toggleMobileNav()" class="block px-3.5 py-2 rounded-xl font-bold text-xs text-slate-700 hover:bg-emerald-50">Berita &amp; Artikel</a>
+      <a href="#pengurus" onclick="toggleMobileNav()" class="block px-3.5 py-2 rounded-xl font-bold text-xs text-slate-700 hover:bg-emerald-50">Pengurus Cabang</a>
+      <a href="#rekening" onclick="toggleMobileNav()" class="block px-3.5 py-2 rounded-xl font-bold text-xs text-slate-700 hover:bg-emerald-50">Rekening Donasi</a>
+      <a href="#galeri" onclick="toggleMobileNav()" class="block px-3.5 py-2 rounded-xl font-bold text-xs text-slate-700 hover:bg-emerald-50">Galeri Foto</a>
+      <a href="#kontak" onclick="toggleMobileNav()" class="block px-3.5 py-2 rounded-xl font-bold text-xs text-slate-700 hover:bg-emerald-50">Hubungi Kami</a>
+      <button onclick="openModal('modal-tbc'); toggleMobileNav();" class="w-full text-left px-3.5 py-2 rounded-xl font-bold text-xs text-teal-800 bg-teal-50">
+        <i class="fa-solid fa-stethoscope mr-1"></i> Skrining Mandiri TBC
+      </button>
+      <button onclick="openModal('modal-login'); toggleMobileNav();" class="w-full text-left px-3.5 py-2 rounded-xl font-bold text-xs text-emerald-800 bg-emerald-50">
+        <i class="fa-solid fa-lock mr-1"></i> Portal Admin
+      </button>
+    </div>
+  </nav>
+
+  <!-- ========================================== -->
+  <!-- 3. KONTEN HALAMAN UTAMA (ONE-PAGE SCROLL) -->
+  <!-- ========================================== -->
+  <main class="flex-grow">
+
+    <!-- HERO BANNER -->
+    <section id="beranda" class="relative bg-gradient-to-b from-emerald-900 via-emerald-850 to-teal-950 text-white py-16 lg:py-24 overflow-hidden">
+      <div class="absolute inset-0 opacity-10 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:16px_16px]"></div>
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+          
+          <div class="lg:col-span-7 space-y-6 text-center lg:text-left">
+            <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-800/80 border border-emerald-500/30 text-emerald-200 text-xs font-bold shadow-sm">
+              <i class="fa-solid fa-shield-halved text-emerald-400"></i>
+              <span id="hero-badge">Resmi &amp; Berizin Kemenkumham RI — Sub-Recipient (SR) Kalbar</span>
+            </div>
+            
+            <h1 id="hero-title" class="text-3xl sm:text-4xl lg:text-5xl font-black text-white leading-tight tracking-tight">
+              Menebar Kebaikan, Merajut Asa Umat di Kalimantan Barat
+            </h1>
+            
+            <p id="hero-subtitle" class="text-slate-200 text-sm sm:text-base leading-relaxed max-w-2xl mx-auto lg:mx-0">
+              Lembaga filantropi dan kemanusiaan resmi yang bergerak aktif mendampingi masyarakat dhuafa, beasiswa anak yatim, bantuan pangan bergizi, serta aksi penanganan dan eliminasi TBC di 14 Kabupaten/Kota se-Kalimantan Barat.
+            </p>
+            
+            <div class="flex flex-wrap items-center justify-center lg:justify-start gap-3.5 pt-2">
+              <a href="#rekening" class="px-6 py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 flex items-center gap-2.5 transition-all">
+                <i class="fa-solid fa-hand-holding-dollar text-base"></i>
+                <span>Salurkan Infaq &amp; Donasi</span>
+              </a>
+              <button onclick="openModal('modal-tbc')" class="px-6 py-3.5 rounded-xl bg-teal-600/90 hover:bg-teal-500 border border-teal-400/40 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2.5 transition-all">
+                <i class="fa-solid fa-stethoscope"></i>
+                <span>Konsultasi &amp; Skrining TBC</span>
+              </button>
+            </div>
+
+            <!-- Mini stats highlight -->
+            <div class="grid grid-cols-3 gap-3 pt-8 border-t border-emerald-800/60 max-w-lg mx-auto lg:mx-0">
+              <div class="bg-emerald-950/50 p-3 rounded-xl border border-emerald-800/40 text-center">
+                <span class="block font-black text-lg sm:text-2xl text-emerald-300">14 Wilayah</span>
+                <span class="text-[11px] text-slate-300 font-medium">Kab/Kota Kalbar</span>
+              </div>
+              <div class="bg-emerald-950/50 p-3 rounded-xl border border-emerald-800/40 text-center">
+                <span class="block font-black text-lg sm:text-2xl text-emerald-300">250+ Kader</span>
+                <span class="text-[11px] text-slate-300 font-medium">Relawan Lapangan</span>
+              </div>
+              <div class="bg-emerald-950/50 p-3 rounded-xl border border-emerald-800/40 text-center">
+                <span class="block font-black text-lg sm:text-2xl text-emerald-300">5.400+</span>
+                <span class="text-[11px] text-slate-300 font-medium">Pasien Terbantu</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Donation Card on Hero -->
+          <div class="lg:col-span-5">
+            <div class="relative mx-auto max-w-md">
+              <div class="absolute -inset-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-3xl blur-lg opacity-30"></div>
+              <div class="relative bg-white rounded-3xl p-6 sm:p-7 text-slate-900 shadow-2xl border border-slate-100">
+                <div class="flex items-center gap-3 mb-4 pb-4 border-b border-slate-100">
+                  <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                    <i class="fa-solid fa-hand-holding-heart text-emerald-700"></i>
+                  </div>
+                  <div>
+                    <h4 class="font-extrabold text-sm text-slate-900">Salurkan Donasi Terbaik</h4>
+                    <p class="text-[11px] text-slate-500">Transparan, Amanah &amp; Akuntabel</p>
+                  </div>
+                </div>
+
+                <div class="space-y-3">
+                  <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                    <div class="flex justify-between items-center text-xs mb-1">
+                      <span class="font-bold text-slate-700">Bank Syariah Indonesia (BSI)</span>
+                      <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-800 font-bold">Nasional</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                      <span class="font-mono font-black text-sm text-slate-900">714-8899-001</span>
+                      <button onclick="copyToClipboard('714-8899-001', 'Nomor Rekening BSI')" class="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-[11px] font-bold">Salin</button>
+                    </div>
+                    <span class="text-[10px] text-slate-500 block mt-0.5">a.n. Yayasan Bina Asri Kalbar</span>
+                  </div>
+
+                  <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                    <div class="flex justify-between items-center text-xs mb-1">
+                      <span class="font-bold text-slate-700">Bank Kalbar Syariah</span>
+                      <span class="px-2 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 font-bold">Daerah</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                      <span class="font-mono font-black text-sm text-slate-900">102-500-7890</span>
+                      <button onclick="copyToClipboard('102-500-7890', 'Nomor Rekening Bank Kalbar')" class="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-[11px] font-bold">Salin</button>
+                    </div>
+                    <span class="text-[10px] text-slate-500 block mt-0.5">a.n. Yayasan Bina Asri Kalbar</span>
+                  </div>
+                </div>
+
+                <div class="mt-4 pt-4 border-t border-slate-100 text-center">
+                  <a href="#rekening" class="text-xs font-bold text-emerald-700 hover:underline inline-flex items-center gap-1.5">
+                    <span>Lihat Semua Rekening Resmi Yayasan</span>
+                    <i class="fa-solid fa-arrow-right text-[11px]"></i>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- STATISTIK DAMPAK (4 COUNTERS) -->
+    <section class="py-12 bg-white border-b border-slate-100">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+          <div class="p-6 rounded-2xl bg-slate-50 border border-slate-100 hover:shadow-md transition-shadow">
+            <div class="w-12 h-12 mx-auto mb-3 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-xl">
+              <i class="fa-solid fa-map-location-dot"></i>
+            </div>
+            <span class="block font-black text-2xl sm:text-3xl text-slate-900">14 Wilayah</span>
+            <span class="text-xs text-slate-500 font-medium">Kabupaten &amp; Kota di Kalbar</span>
+          </div>
+
+          <div class="p-6 rounded-2xl bg-slate-50 border border-slate-100 hover:shadow-md transition-shadow">
+            <div class="w-12 h-12 mx-auto mb-3 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center text-xl">
+              <i class="fa-solid fa-users"></i>
+            </div>
+            <span class="block font-black text-2xl sm:text-3xl text-slate-900">250+ Kader</span>
+            <span class="text-xs text-slate-500 font-medium">Relawan Pendamping Lapangan</span>
+          </div>
+
+          <div class="p-6 rounded-2xl bg-slate-50 border border-slate-100 hover:shadow-md transition-shadow">
+            <div class="w-12 h-12 mx-auto mb-3 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-xl">
+              <i class="fa-solid fa-hand-holding-heart"></i>
+            </div>
+            <span class="block font-black text-2xl sm:text-3xl text-slate-900">5.400+</span>
+            <span class="text-xs text-slate-500 font-medium">Pasien Terbantu &amp; Didampingi</span>
+          </div>
+
+          <div class="p-6 rounded-2xl bg-slate-50 border border-slate-100 hover:shadow-md transition-shadow">
+            <div class="w-12 h-12 mx-auto mb-3 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center text-xl">
+              <i class="fa-solid fa-certificate"></i>
+            </div>
+            <span class="block font-black text-2xl sm:text-3xl text-slate-900">100% Sah</span>
+            <span class="text-xs text-slate-500 font-medium">Kemenkumham &amp; Dinsos Kalbar</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 4. PROFIL & LEGALITAS HUKUM RESMI -->
+    <!-- ========================================== -->
+    <section id="profil" class="py-16 lg:py-20 bg-slate-50 border-b border-slate-200">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        <div class="text-center max-w-3xl mx-auto mb-12">
+          <span class="text-xs font-extrabold text-emerald-700 uppercase tracking-widest block mb-2">Tentang Kami</span>
+          <h2 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Profil &amp; Legalitas Yayasan Bina Asri Kalbar</h2>
+          <p class="text-slate-600 text-sm mt-2">Mewujudkan kemaslahatan umat melalui program sosial terpadu, kesehatan berkelanjutan, dan advokasi kemanusiaan yang berkesinambungan.</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          
+          <div class="lg:col-span-8 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+            <div>
+              <h3 class="font-black text-lg text-slate-900 mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-landmark text-emerald-700"></i>
+                <span>Sejarah Singkat &amp; Landasan Gerak</span>
+              </h3>
+              <p id="profil-sejarah" class="text-slate-600 text-sm leading-relaxed whitespace-pre-line">
+                Yayasan Bina Asri Kalimantan Barat didirikan dengan cita-cita luhur untuk membantu masyarakat marjinal di pelosok Kalimantan Barat. Melalui sinergi erat dengan instansi pemerintah, Dinas Kesehatan, rumah sakit rujukan, organisasi filantropi, dan komunitas masyarakat, kami bergerak aktif dalam program pemberdayaan dhuafa, beasiswa pendidikan santri, tanggap bencana daerah, serta menjadi mitra strategis utama (Sub-Recipient) penanggulangan dan eliminasi TBC di Kalimantan Barat.
+              </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5 pt-4 border-t border-slate-100">
+              <div class="p-5 rounded-2xl bg-emerald-50/70 border border-emerald-100">
+                <div class="flex items-center gap-2.5 text-emerald-900 font-extrabold text-sm mb-2">
+                  <i class="fa-solid fa-compass text-emerald-600"></i>
+                  <span>Visi Lembaga</span>
+                </div>
+                <p id="profil-visi" class="text-xs text-slate-700 leading-relaxed">
+                  Menjadi yayasan sosial-kemanusiaan yang terdepan, amanah, profesional, dan berdaya guna tinggi bagi peningkatan derajat kesehatan dan kesejahteraan masyarakat di seluruh wilayah Kalimantan Barat.
+                </p>
+              </div>
+
+              <div class="p-5 rounded-2xl bg-teal-50/70 border border-teal-100">
+                <div class="flex items-center gap-2.5 text-teal-900 font-extrabold text-sm mb-2">
+                  <i class="fa-solid fa-bullseye text-teal-600"></i>
+                  <span>Misi Lembaga</span>
+                </div>
+                <div id="profil-misi" class="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
+                  1. Melaksanakan pendampingan pasien pengobatan TBC secara tuntas dan manusiawi.
+                  2. Mengentaskan kemiskinan dengan bantuan pangan, santunan, dan pemberdayaan ekonomi umat.
+                  3. Menggalang sinergi kebaikan bersama donatur dan masyarakat Kalimantan Barat secara transparan.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Legalitas Dokumen Box -->
+          <div class="lg:col-span-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+            <h3 class="font-black text-sm text-slate-900 flex items-center gap-2">
+              <i class="fa-solid fa-stamp text-emerald-700"></i>
+              <span>Legalitas Hukum Resmi</span>
+            </h3>
+
+            <div class="space-y-3 text-xs">
+              <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <span class="block text-slate-400 text-[10px] font-bold uppercase">SK Kemenkumham RI</span>
+                <strong id="profil-sk" class="text-slate-900 font-mono text-xs">AHU-0012345.AH.01.04.Tahun 2018</strong>
+              </div>
+              <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <span class="block text-slate-400 text-[10px] font-bold uppercase">Akta Notaris Pendirian</span>
+                <strong class="text-slate-900 font-mono text-xs">No. 12 Tanggal 18 Juli 2018</strong>
+              </div>
+              <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <span class="block text-slate-400 text-[10px] font-bold uppercase">NPWP Lembaga Yayasan</span>
+                <strong class="text-slate-900 font-mono text-xs">85.912.345.6-701.000</strong>
+              </div>
+              <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <span class="block text-slate-400 text-[10px] font-bold uppercase">Status Registrasi Sosial</span>
+                <span class="inline-block px-2 py-0.5 mt-1 rounded bg-emerald-100 text-emerald-800 font-bold text-[10px]">Terdaftar Resmi di Dinsos Prov. Kalbar</span>
+              </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-100">
+              <div class="p-3 rounded-xl bg-emerald-50 text-emerald-900 text-[11px] leading-relaxed">
+                <i class="fa-solid fa-circle-check text-emerald-600 mr-1"></i>
+                <strong>Akuntabel:</strong> Laporan pertanggungjawaban diserahkan secara berkala ke kementerian dan para donatur.
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 5. PROGRAM KERJA & AKSI KEBAIKAN -->
+    <!-- ========================================== -->
+    <section id="program" class="py-16 lg:py-20 bg-white border-b border-slate-100">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-10">
+          <div>
+            <span class="text-xs font-extrabold text-emerald-700 uppercase tracking-widest block mb-1">Aksi Nyata</span>
+            <h2 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Program Kerja &amp; Pemberdayaan</h2>
+            <p class="text-slate-500 text-xs sm:text-sm mt-1">Dukung program keberlanjutan demi terwujudnya masyarakat Kalbar yang sehat, mandiri, dan bermartabat.</p>
+          </div>
+          <a href="#rekening" class="px-4 py-2 rounded-xl bg-emerald-50 text-emerald-800 font-bold text-xs hover:bg-emerald-100 transition-colors">
+            Dukung Program <i class="fa-solid fa-chevron-right ml-1 text-[10px]"></i>
+          </a>
+        </div>
+
+        <div id="programs-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <!-- Will be rendered dynamically by JavaScript -->
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 6. BERITA, ARTIKEL & PUBLIKASI -->
+    <!-- ========================================== -->
+    <section id="berita" class="py-16 lg:py-20 bg-slate-50 border-b border-slate-200">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        <div class="text-center max-w-2xl mx-auto mb-10">
+          <span class="text-xs font-extrabold text-emerald-700 uppercase tracking-widest block mb-1">Publikasi Terkini</span>
+          <h2 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Kabar Kegiatan &amp; Laporan Aksi</h2>
+          <p class="text-slate-600 text-xs sm:text-sm mt-1">Informasi kegiatan penyaluran amanah, pendampingan pasien, dan edukasi kesehatan di Kalimantan Barat.</p>
+        </div>
+
+        <div id="news-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <!-- Rendered dynamically by JavaScript -->
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 7. STRUKTUR PENGURUS & CABANG DAERAH -->
+    <!-- ========================================== -->
+    <section id="pengurus" class="py-16 lg:py-20 bg-white border-b border-slate-100">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        <div class="text-center max-w-2xl mx-auto mb-8">
+          <span class="text-xs font-extrabold text-emerald-700 uppercase tracking-widest block mb-1">Amanah &amp; Dedikasi</span>
+          <h2 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Pengurus &amp; Koordinator Cabang</h2>
+          <p class="text-slate-600 text-xs sm:text-sm mt-1">Jajaran pembina, pengurus pusat di Pontianak, dan koordinator di 14 Kabupaten/Kota se-Kalbar.</p>
+        </div>
+
+        <!-- Filter Cabang Pills -->
+        <div class="flex items-center justify-center gap-2 flex-wrap mb-10" id="pengurus-filters">
+          <button onclick="filterPengurus('Semua')" class="pengurus-filter-btn px-4 py-1.5 rounded-full text-xs font-bold bg-emerald-700 text-white shadow-sm" data-cabang="Semua">Semua Wilayah</button>
+          <button onclick="filterPengurus('Kota Pontianak')" class="pengurus-filter-btn px-4 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200" data-cabang="Kota Pontianak">Kota Pontianak</button>
+          <button onclick="filterPengurus('Kubu Raya')" class="pengurus-filter-btn px-4 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200" data-cabang="Kubu Raya">Kubu Raya</button>
+          <button onclick="filterPengurus('Sambas')" class="pengurus-filter-btn px-4 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200" data-cabang="Sambas">Sambas</button>
+          <button onclick="filterPengurus('Singkawang')" class="pengurus-filter-btn px-4 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200" data-cabang="Singkawang">Singkawang</button>
+          <button onclick="filterPengurus('Ketapang')" class="pengurus-filter-btn px-4 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200" data-cabang="Ketapang">Ketapang</button>
+          <button onclick="filterPengurus('Sintang')" class="pengurus-filter-btn px-4 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200" data-cabang="Sintang">Sintang</button>
+        </div>
+
+        <div id="pengurus-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <!-- Rendered dynamically by JavaScript -->
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 8. REKENING DONASI & INFAQ RESMI -->
+    <!-- ========================================== -->
+    <section id="rekening" class="py-16 lg:py-20 bg-slate-900 text-white relative overflow-hidden">
+      <div class="absolute inset-0 opacity-10 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:20px_20px]"></div>
+      
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        
+        <div class="text-center max-w-2xl mx-auto mb-12">
+          <span class="text-xs font-extrabold text-emerald-400 uppercase tracking-widest block mb-1">Amanah Infaq &amp; Sedekah</span>
+          <h2 class="text-2xl sm:text-3xl font-black text-white tracking-tight">Rekening Resmi Yayasan Bina Asri Kalbar</h2>
+          <p class="text-slate-300 text-xs sm:text-sm mt-1">Salurkan kepedulian Anda untuk santunan dhuafa, beasiswa, dan pendampingan pasien pengobatan TBC.</p>
+        </div>
+
+        <div id="rekening-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+          <!-- Rendered dynamically by JavaScript -->
+        </div>
+
+        <!-- Konfirmasi Donasi Notice -->
+        <div class="mt-12 p-6 rounded-3xl bg-slate-800/80 border border-slate-700 text-slate-300 text-xs max-w-3xl mx-auto flex items-start gap-4">
+          <i class="fa-solid fa-headset text-emerald-400 text-2xl shrink-0 mt-0.5"></i>
+          <div class="space-y-1">
+            <strong class="font-bold text-sm text-white block">Konfirmasi Donasi &amp; Jemput Infaq</strong>
+            <p class="leading-relaxed">
+              Setelah melakukan transfer, silakan kirim bukti transfer melalui WhatsApp ke nomor <strong id="rekening-wa" class="text-emerald-400">0812-5678-9012</strong> untuk pencatatan dan penerbitan kwitansi resmi tanda terima donasi.
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 9. GALERI DOKUMENTASI KEGIATAN -->
+    <!-- ========================================== -->
+    <section id="galeri" class="py-16 lg:py-20 bg-white border-b border-slate-100">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-10">
+          <div>
+            <span class="text-xs font-extrabold text-emerald-700 uppercase tracking-widest block mb-1">Dokumentasi Lapangan</span>
+            <h2 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Galeri Kegiatan Yayasan</h2>
+            <p class="text-slate-500 text-xs sm:text-sm mt-1">Potret hangat aksi kepedulian bersama para kader, pasien, dan penerima manfaat di Kalbar.</p>
+          </div>
+          <span class="text-xs text-slate-400 font-semibold">Klik foto untuk melihat ukuran penuh</span>
+        </div>
+
+        <div id="galeri-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+          <!-- Rendered dynamically by JavaScript -->
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 10. HUBUNGI KAMI & FORMULIR PESAN MASUK -->
+    <!-- ========================================== -->
+    <section id="kontak" class="py-16 lg:py-20 bg-slate-50 border-b border-slate-200">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        <div class="text-center max-w-2xl mx-auto mb-12">
+          <span class="text-xs font-extrabold text-emerald-700 uppercase tracking-widest block mb-1">Terhubung Dengan Kami</span>
+          <h2 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Hubungi Sekretariat Yayasan</h2>
+          <p class="text-slate-600 text-xs sm:text-sm mt-1">Pintu kami selalu terbuka untuk pertanyaan, konsultasi pengobatan, konsultasi donasi, dan kemitraan CSR.</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start max-w-6xl mx-auto">
+          
+          <!-- Kontak Info -->
+          <div class="lg:col-span-5 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+            <h3 class="font-black text-lg text-slate-900">Alamat &amp; Kontak Resmi</h3>
+            
+            <div class="space-y-4 text-xs">
+              <div class="flex items-start gap-3.5 p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
+                <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                  <i class="fa-solid fa-location-dot"></i>
+                </div>
+                <div>
+                  <span class="block text-slate-400 font-bold uppercase text-[10px]">Kantor Sekretariat</span>
+                  <p id="kontak-alamat" class="text-slate-800 font-semibold leading-relaxed mt-0.5">
+                    Jl. Ahmad Yani No. 88, Kota Pontianak, Kalimantan Barat 78124
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-3.5 p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
+                <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                  <i class="fa-brands fa-whatsapp text-lg"></i>
+                </div>
+                <div>
+                  <span class="block text-slate-400 font-bold uppercase text-[10px]">WhatsApp Hotline</span>
+                  <p id="kontak-wa" class="text-slate-800 font-semibold mt-0.5">0812-5678-9012</p>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-3.5 p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
+                <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                  <i class="fa-solid fa-envelope"></i>
+                </div>
+                <div>
+                  <span class="block text-slate-400 font-bold uppercase text-[10px]">Email Lembaga</span>
+                  <p id="kontak-email" class="text-slate-800 font-semibold mt-0.5">sekretariat@binaasrikalbar.org</p>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-3.5 p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
+                <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                  <i class="fa-solid fa-clock"></i>
+                </div>
+                <div>
+                  <span class="block text-slate-400 font-bold uppercase text-[10px]">Jam Pelayanan</span>
+                  <p class="text-slate-800 font-semibold mt-0.5">Senin - Jumat: 08.00 - 16.00 WIB</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Form Kirim Pesan (Langsung ke Google Sheet) -->
+          <div class="lg:col-span-7 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm">
+            <h3 class="font-black text-lg text-slate-900 mb-1">Kirimkan Pesan Anda</h3>
+            <p class="text-slate-500 text-xs mb-6">Pesan Anda akan otomatis terkirim dan tercatat di database Spreadsheet sekretariat.</p>
+
+            <form id="contact-form" onsubmit="handleFormSubmit(event)" class="space-y-4">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Nama Lengkap *</label>
+                  <input type="text" id="form-nama" required placeholder="Contoh: Ahmad Fadilah" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-emerald-500 outline-none">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Nomor WhatsApp *</label>
+                  <input type="text" id="form-telepon" required placeholder="Contoh: 081234567890" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-emerald-500 outline-none">
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Alamat Email (Opsional)</label>
+                  <input type="email" id="form-email" placeholder="nama@email.com" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-emerald-500 outline-none">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Perihal / Kategori *</label>
+                  <select id="form-subjek" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-emerald-500 outline-none bg-white">
+                    <option value="Konsultasi Donasi">Konsultasi Infaq &amp; Donasi</option>
+                    <option value="Layanan Pendampingan TBC">Layanan Pendampingan TBC</option>
+                    <option value="Kerjasama CSR & Kemitraan">Kerjasama CSR &amp; Lembaga</option>
+                    <option value="Pendaftaran Relawan">Pendaftaran Relawan / Kader</option>
+                    <option value="Lainnya">Lainnya</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Pesan / Uraian *</label>
+                <textarea id="form-pesan" rows="4" required placeholder="Tuliskan pesan atau kebutuhan Anda di sini..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"></textarea>
+              </div>
+
+              <button type="submit" id="btn-submit-pesan" class="w-full py-3 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs uppercase tracking-wider shadow-md shadow-emerald-900/10 flex items-center justify-center gap-2 transition-all">
+                <i class="fa-solid fa-paper-plane"></i>
+                <span id="btn-submit-text">Kirim Pesan ke Yayasan</span>
+              </button>
+            </form>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========================================== -->
+  <!-- 11. FOOTER -->
+  <!-- ========================================== -->
+  <footer class="bg-slate-950 text-slate-400 text-xs py-12 border-t border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-8 mb-8 pb-8 border-b border-slate-800">
+        
+        <div class="md:col-span-5 space-y-3">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-emerald-700 text-white flex items-center justify-center font-black">
+              <i class="fa-solid fa-hand-holding-heart"></i>
+            </div>
+            <div>
+              <span class="block font-black text-sm text-white">YAYASAN BINA ASRI</span>
+              <span class="text-[10px] text-emerald-400 font-bold">KALIMANTAN BARAT</span>
+            </div>
+          </div>
+          <p class="text-[11px] leading-relaxed text-slate-400">
+            Lembaga filantropi dan sosial kemanusiaan resmi. Berkhidmat mendampingi masyarakat dhuafa dan eliminasi TBC di 14 Kabupaten/Kota se-Kalimantan Barat.
+          </p>
+          <div class="text-[11px] text-slate-500">
+            <i class="fa-solid fa-shield-halved text-emerald-500 mr-1"></i> SK Kemenkumham RI: <span class="text-slate-300 font-mono">AHU-0012345.AH.01.04.Tahun 2018</span>
+          </div>
+        </div>
+
+        <div class="md:col-span-3 space-y-2">
+          <h4 class="font-bold text-white text-xs uppercase tracking-wider">Navigasi Cepat</h4>
+          <ul class="space-y-1.5 text-[11px]">
+            <li><a href="#beranda" class="hover:text-emerald-400 transition-colors">Beranda</a></li>
+            <li><a href="#profil" class="hover:text-emerald-400 transition-colors">Profil &amp; Legalitas</a></li>
+            <li><a href="#program" class="hover:text-emerald-400 transition-colors">Program Kerja</a></li>
+            <li><a href="#berita" class="hover:text-emerald-400 transition-colors">Berita Terkini</a></li>
+            <li><a href="#pengurus" class="hover:text-emerald-400 transition-colors">Pengurus &amp; Cabang</a></li>
+            <li><a href="#rekening" class="hover:text-emerald-400 transition-colors">Rekening Donasi</a></li>
+          </ul>
+        </div>
+
+        <div class="md:col-span-4 space-y-2">
+          <h4 class="font-bold text-white text-xs uppercase tracking-wider">Database Google Sheet</h4>
+          <p class="text-[11px] leading-relaxed">
+            Data website terhubung langsung dengan Google Spreadsheet ID: <br>
+            <span class="font-mono text-emerald-400 text-[10px] break-all">1CJrBhbmpgUWSN3skd-whjf0yYqvxLsI0Xj5TBe4hZSY</span>
+          </p>
+          <div class="pt-2">
+            <button onclick="openModal('modal-login')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-[11px] border border-slate-700 flex items-center gap-1.5">
+              <i class="fa-solid fa-lock text-emerald-400"></i> Masuk ke Portal Admin
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="flex flex-col sm:flex-row justify-between items-center gap-3 text-[11px]">
+        <p>&copy; 2026 Yayasan Bina Asri Kalimantan Barat. Seluruh Hak Cipta Dilindungi.</p>
+        <p class="text-slate-500">Sub-Recipient Eliminasi TBC Kalimantan Barat</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ========================================== -->
+  <!-- 12. FLOATING WHATSAPP BUTTON -->
+  <!-- ========================================== -->
+  <a id="floating-wa" href="https://wa.me/6281256789012?text=Assalamu%27alaikum%20Yayasan%20Bina%20Asri%20Kalbar%2C%20saya%20ingin%20konsultasi" target="_blank" class="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center text-2xl shadow-xl shadow-emerald-900/30 hover:scale-110 transition-transform z-40" title="Hubungi Kami via WhatsApp">
+    <i class="fa-brands fa-whatsapp"></i>
+  </a>
+
+  <!-- ========================================== -->
+  <!-- 13. MODALS (SKRINING TBC, BACA BERITA, LOGIN, DLL) -->
+  <!-- ========================================== -->
+
+  <!-- MODAL: SKRINING MANDIRI TOSS TBC -->
+  <div id="modal-tbc" class="hidden fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 max-h-[90vh] overflow-y-auto shadow-2xl">
+      <div class="flex justify-between items-center pb-4 border-b border-slate-100 mb-5">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center font-black">
+            <i class="fa-solid fa-stethoscope text-teal-700"></i>
+          </div>
+          <div>
+            <h3 class="font-extrabold text-base text-slate-900">Skrining Mandiri Gejala TBC (TOSS)</h3>
+            <p class="text-xs text-slate-500">Temukan TBC, Obati Sampai Sembuh</p>
+          </div>
+        </div>
+        <button onclick="closeModal('modal-tbc')" class="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div id="tbc-questions" class="space-y-4 text-xs">
+        <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+          <label class="font-bold text-slate-800 block mb-2">1. Apakah Anda mengalami batuk berdahak terus-menerus selama 2 minggu atau lebih?</label>
+          <div class="flex gap-4">
+            <label class="flex items-center gap-1.5 cursor-pointer"><input type="radio" name="tbc_q1" value="1" class="text-emerald-600"> Ya</label>
+            <label class="flex items-center gap-1.5 cursor-pointer"><input type="radio" name="tbc_q1" value="0" checked class="text-emerald-600"> Tidak</label>
+          </div>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+          <label class="font-bold text-slate-800 block mb-2">2. Apakah Anda mengalami demam meriang berkepanjangan tanpa sebab yang jelas?</label>
+          <div class="flex gap-4">
+            <label class="flex items-center gap-1.5 cursor-pointer"><input type="radio" name="tbc_q2" value="1" class="text-emerald-600"> Ya</label>
+            <label class="flex items-center gap-1.5 cursor-pointer"><input type="radio" name="tbc_q2" value="0" checked class="text-emerald-600"> Tidak</label>
+          </div>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+          <label class="font-bold text-slate-800 block mb-2">3. Apakah Anda sering berkeringat di malam hari meski tanpa melakukan aktivitas fisik?</label>
+          <div class="flex gap-4">
+            <label class="flex items-center gap-1.5 cursor-pointer"><input type="radio" name="tbc_q3" value="1" class="text-emerald-600"> Ya</label>
+            <label class="flex items-center gap-1.5 cursor-pointer"><input type="radio" name="tbc_q3" value="0" checked class="text-emerald-600"> Tidak</label>
+          </div>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+          <label class="font-bold text-slate-800 block mb-2">4. Apakah terjadi penurunan berat badan drastis atau nafsu makan berkurang drastis?</label>
+          <div class="flex gap-4">
+            <label class="flex items-center gap-1.5 cursor-pointer"><input type="radio" name="tbc_q4" value="1" class="text-emerald-600"> Ya</label>
+            <label class="flex items-center gap-1.5 cursor-pointer"><input type="radio" name="tbc_q4" value="0" checked class="text-emerald-600"> Tidak</label>
+          </div>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+          <label class="font-bold text-slate-800 block mb-2">5. Apakah Anda memiliki riwayat kontak serumah/dekat dengan pasien TBC?</label>
+          <div class="flex gap-4">
+            <label class="flex items-center gap-1.5 cursor-pointer"><input type="radio" name="tbc_q5" value="1" class="text-emerald-600"> Ya</label>
+            <label class="flex items-center gap-1.5 cursor-pointer"><input type="radio" name="tbc_q5" value="0" checked class="text-emerald-600"> Tidak</label>
+          </div>
+        </div>
+
+        <button onclick="calculateTbcScore()" class="w-full py-3 rounded-xl bg-teal-700 hover:bg-teal-600 text-white font-bold text-xs uppercase tracking-wider transition-colors">
+          Cek Hasil Skrining
+        </button>
+      </div>
+
+      <!-- Hasil Skrining (Awalnya tersembunyi) -->
+      <div id="tbc-result" class="hidden space-y-4 pt-2">
+        <div id="tbc-result-box" class="p-4 rounded-2xl text-xs leading-relaxed"></div>
+        <div class="flex gap-3">
+          <button onclick="resetTbcQuiz()" class="flex-1 py-2.5 rounded-xl border border-slate-200 font-bold text-xs text-slate-600 hover:bg-slate-50">Ulangi Tes</button>
+          <a id="tbc-wa-action" href="https://wa.me/6281256789012" target="_blank" class="flex-1 py-2.5 rounded-xl bg-emerald-700 text-white font-bold text-xs text-center hover:bg-emerald-600">Konsultasi Kader WA</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: BACA BERITA DETAIL -->
+  <div id="modal-berita" class="hidden fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 max-h-[90vh] overflow-y-auto shadow-2xl">
+      <div class="flex justify-between items-start pb-4 border-b border-slate-100 mb-4">
+        <div>
+          <span id="read-kategori" class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">Kategori</span>
+          <span id="read-tanggal" class="text-slate-400 text-xs ml-2">12 Okt 2026</span>
+          <h2 id="read-judul" class="text-xl sm:text-2xl font-black text-slate-900 mt-2 leading-snug">Judul Berita Lengkap</h2>
+        </div>
+        <button onclick="closeModal('modal-berita')" class="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <img id="read-gambar" src="" alt="Foto Berita" class="w-full h-64 object-cover rounded-2xl mb-4 shadow-sm">
+      
+      <div id="read-konten" class="text-slate-700 text-xs sm:text-sm leading-relaxed space-y-3 whitespace-pre-line">
+        Konten berita lengkap...
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: LIGHTBOX FOTO GALERI -->
+  <div id="modal-lightbox" class="hidden fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onclick="closeModal('modal-lightbox')">
+    <div class="max-w-4xl max-h-[90vh] flex flex-col items-center">
+      <img id="lightbox-img" src="" alt="Galeri Preview" class="max-h-[80vh] max-w-full rounded-2xl object-contain shadow-2xl">
+      <p id="lightbox-caption" class="text-white text-xs mt-3 text-center font-medium"></p>
+    </div>
+  </div>
+
+  <!-- MODAL: PORTAL LOGIN ADMIN -->
+  <div id="modal-login" class="hidden fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 sm:p-7 shadow-2xl">
+      <div class="flex justify-between items-center pb-3 border-b border-slate-100 mb-4">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+            <i class="fa-solid fa-lock text-sm"></i>
+          </div>
+          <h3 class="font-extrabold text-sm text-slate-900">Portal Masuk Pengurus</h3>
+        </div>
+        <button onclick="closeModal('modal-login')" class="text-slate-400 hover:text-slate-600">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form id="login-form" onsubmit="handleLoginSubmit(event)" class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Username Admin</label>
+          <input type="text" id="login-username" required placeholder="admin" class="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Password</label>
+          <input type="password" id="login-password" required placeholder="••••••••" class="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500">
+        </div>
+
+        <button type="submit" id="btn-login" class="w-full py-2.5 mt-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs uppercase tracking-wider transition-colors shadow-sm">
+          Masuk ke Dashboard
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFIKASI -->
+  <div id="toast-box" class="fixed bottom-6 left-6 z-50 transform -translate-y-12 opacity-0 pointer-events-none px-4 py-3 rounded-2xl shadow-xl text-xs font-bold flex items-center gap-2.5">
+    <i id="toast-icon" class="fa-solid fa-circle-check"></i>
+    <span id="toast-msg">Notifikasi</span>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- 14. DATA DEFAULT & CLIENT SCRIPTS -->
+  <!-- ========================================== -->
+  <script>
+    // DATA DEFAULT AWAL (SEPERTI PADA APLIKASI REACT AGAR TAMPILAN LANGSUNG LENGKAP & INDAH)
+    const DEFAULT_DATA = {
+      kontenWeb: {
+        brand_name: "YAYASAN BINA ASRI",
+        brand_sub: "KALIMANTAN BARAT",
+        hero_badge: "Resmi & Berizin Kemenkumham RI — Sub-Recipient (SR) Kalbar",
+        hero_title: "Menebar Kebaikan, Merajut Asa Umat di Kalimantan Barat",
+        hero_subtitle: "Lembaga filantropi dan kemanusiaan resmi yang bergerak aktif mendampingi masyarakat dhuafa, beasiswa anak yatim, bantuan pangan bergizi, serta aksi penanganan dan eliminasi TBC di 14 Kabupaten/Kota se-Kalimantan Barat.",
+        kontak_sk: "AHU-0012345.AH.01.04.Tahun 2018",
+        kontak_alamat: "Jl. Ahmad Yani No. 88, Kota Pontianak, Kalimantan Barat 78124",
+        kontak_telepon: "0812-5678-9012",
+        kontak_email: "sekretariat@binaasrikalbar.org"
+      },
+      program: [
+        {
+          id: 1,
+          judul: "Eliminasi TBC & Pendampingan Pasien Komprehensif",
+          kategori: "Kesehatan",
+          ringkasan: "Pelacakan kontak erat serumah, investigasi kontak lapangan, dan pendampingan minum obat hingga sembuh total tanpa putus di 14 Kab/Kota se-Kalbar.",
+          sasaran: "Pasien TBC & Keluarga Kontak Erat",
+          ikon: "fa-solid fa-lungs"
+        },
+        {
+          id: 2,
+          judul: "Pemberdayaan Gizi & Nutrisi Pasien Rentan Dhuafa",
+          kategori: "Sosial Kemanusiaan",
+          ringkasan: "Paket sembako bergizi tinggi, susu, dan suplemen protein bagi pasien TBC prasejahtera selama masa pemulihan pengobatan 6-24 bulan.",
+          sasaran: "Keluarga Prasejahtera & Pasien TBC",
+          ikon: "fa-solid fa-bowl-food"
+        },
+        {
+          id: 3,
+          judul: "Pelatihan & Peningkatan Kapasitas Kader Komunitas",
+          kategori: "Pendidikan & Kapasitas",
+          ringkasan: "Workshop dan pembekalan teknis bagi lebih dari 250 kader relawan lapangan dalam edukasi TOSS TBC dan konseling pasien di pelosok.",
+          sasaran: "250+ Kader Relawan Daerah",
+          ikon: "fa-solid fa-graduation-cap"
+        },
+        {
+          id: 4,
+          judul: "Advokasi Kebijakan & Sinergi Lintas Sektor Daerah",
+          kategori: "Advokasi & Kebijakan",
+          ringkasan: "Rembuk kebijakan bersama Dinas Kesehatan, Bappeda, dan Rumah Sakit Daerah dalam rangka mendorong alokasi anggaran penanganan TBC daerah.",
+          sasaran: "Pemerintah Daerah & Stakeholder",
+          ikon: "fa-solid fa-handshake-angle"
+        },
+        {
+          id: 5,
+          judul: "Beasiswa Anak Dhuafa & Asrama Yatim Berkelanjutan",
+          kategori: "Pendidikan Anak",
+          ringkasan: "Santunan uang saku, perlengkapan sekolah, dan beasiswa pendidikan bagi putra-putri yatim dan keluarga kurang mampu di Kalbar.",
+          sasaran: "Anak Yatim & Dhuafa Kalbar",
+          ikon: "fa-solid fa-book-open-reader"
+        },
+        {
+          id: 6,
+          judul: "Tanggap Darurat Bencana Banjir & Krisis Kemanusiaan",
+          kategori: "Tanggap Darurat",
+          ringkasan: "Distribusi logistik, posko kesehatan darurat, dan air bersih bagi warga terdampak bencana banjir bandang musiman di pedalaman Kalimantan Barat.",
+          sasaran: "Korban Terdampak Bencana",
+          ikon: "fa-solid fa-life-ring"
+        }
+      ],
+      berita: [
+        {
+          id: 1,
+          judul: "Penyaluran Paket Nutrisi & Pendampingan Pasien TBC di Kota Pontianak",
+          kategori: "Aksi Lapangan",
+          tanggal: "04 Nov 2026",
+          ringkasan: "Kader lapangan Yayasan Bina Asri Kalbar menyalurkan puluhan paket nutrisi protein tinggi kepada pasien TBC yang tengah menjalani pengobatan fase lanjutan.",
+          isi: "Tim relawan Yayasan Bina Asri Kalimantan Barat bergerak serentak di wilayah Kota Pontianak untuk mendistribusikan paket bahan pangan berprotein tinggi, suplemen multivitamin, dan susu khusus bagi para pasien TBC dhuafa.\n\nKoordinator lapangan menyampaikan bahwa kepatuhan minum obat selama minimal enam bulan sangat membutuhkan asupan nutrisi yang cukup agar daya tahan tubuh penderita tetap optimal. Program ini didanai oleh amanah donatur dan mitra lembaga kemanusiaan.",
+          gambar: "https://images.unsplash.com/photo-1576765608535-5f04d1e3f289?auto=format&fit=crop&w=800&q=80"
+        },
+        {
+          id: 2,
+          judul: "Rapat Koordinasi Evaluasi Eliminasi TBC se-Kalimantan Barat",
+          kategori: "Advokasi & Sinergi",
+          tanggal: "28 Okt 2026",
+          ringkasan: "Evaluasi capaian penemuan kasus dan pendampingan pasien TBC semester kedua bersama perwakilan koordinator dari 14 kabupaten dan kota.",
+          isi: "Bertempat di Pontianak, Yayasan Bina Asri Kalbar menggelar rapat koordinasi bersama perwakilan kader dari Kubu Raya, Sambas, Mempawah, Singkawang, Ketapang, hingga Sintang.\n\nDalam rakor ini ditekankan pentingnya pelacakan kontak erat dan investigasi kontak (IK) serumah demi memutus rantai transmisi kuman Mycobacterium tuberculosis sedini mungkin di lingkungan keluarga.",
+          gambar: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=800&q=80"
+        },
+        {
+          id: 3,
+          judul: "Penyuluhan TOSS TBC dan Pemeriksaan Dahak Gratis di Sambas",
+          kategori: "Edukasi Warga",
+          tanggal: "15 Okt 2026",
+          ringkasan: "Ratusan warga antusias mengikuti penyuluhan kesehatan mengenai pencegahan batuk menahun serta pemeriksaan skrining dahak TCM secara gratis.",
+          isi: "Kegiatan bakti sosial dan penyuluhan edukatif bertajuk TOSS TBC (Temukan TBC, Obati Sampai Sembuh) sukses diselenggarakan di Kabupaten Sambas. Kegiatan ini melibatkan puskesmas setempat untuk memberikan akses tes cepat molekuler (TCM) bagi masyarakat yang mengalami batuk lebih dari 2 pekan.",
+          gambar: "https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=800&q=80"
+        }
+      ],
+      pengurus: [
+        { id: 1, nama: "H. Ridwan Ashari, S.Sos", jabatan: "Ketua Umum Yayasan", cabang: "Kota Pontianak", foto: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80" },
+        { id: 2, nama: "Dr. Siti Nurhaliza, M.Kes", jabatan: "Direktur Program & Kemitraan", cabang: "Kota Pontianak", foto: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=300&q=80" },
+        { id: 3, nama: "Ahmad Fauzan, S.E", jabatan: "Sekretaris & Operasional", cabang: "Kota Pontianak", foto: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=80" },
+        { id: 4, nama: "Hj. Mardiah, S.Pd", jabatan: "Bendahara & Keuangan", cabang: "Kota Pontianak", foto: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&q=80" },
+        { id: 5, nama: "Budi Santoso, S.Kep", jabatan: "Koordinator Wilayah", cabang: "Kubu Raya", foto: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=300&q=80" },
+        { id: 6, nama: "Rahmat Hidayat, A.Md.Kep", jabatan: "Koordinator Wilayah", cabang: "Sambas", foto: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=300&q=80" },
+        { id: 7, nama: "Dewi Lestari, S.K.M", jabatan: "Koordinator Wilayah", cabang: "Singkawang", foto: "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=300&q=80" },
+        { id: 8, nama: "Iskandar Zulkarnain", jabatan: "Koordinator Wilayah", cabang: "Ketapang", foto: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=300&q=80" }
+      ],
+      rekening: [
+        { id: 1, nama_bank: "Bank Syariah Indonesia (BSI)", no_rekening: "714-8899-001", atas_nama: "Yayasan Bina Asri Kalbar", kategori: "Nasional", icon: "fa-solid fa-building-columns" },
+        { id: 2, nama_bank: "Bank Kalbar Syariah", no_rekening: "102-500-7890", atas_nama: "Yayasan Bina Asri Kalbar", kategori: "Daerah", icon: "fa-solid fa-landmark" },
+        { id: 3, nama_bank: "Bank Mandiri", no_rekening: "146-00-1122334-5", atas_nama: "Yayasan Bina Asri Kalbar", kategori: "Umum", icon: "fa-solid fa-credit-card" },
+        { id: 4, nama_bank: "Bank BCA", no_rekening: "029-8877-665", atas_nama: "Yayasan Bina Asri Kalbar", kategori: "Umum", icon: "fa-solid fa-wallet" }
+      ],
+      galeri: [
+        { id: 1, judul: "Pendampingan Pasien Minum Obat di Pontianak", url: "https://images.unsplash.com/photo-1576765608535-5f04d1e3f289?auto=format&fit=crop&w=800&q=80" },
+        { id: 2, judul: "Penyuluhan Gejala Batuk TBC di Puskesmas", url: "https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=800&q=80" },
+        { id: 3, judul: "Distribusi Paket Sembako & Nutrisi Pasien", url: "https://images.unsplash.com/photo-1593113598332-cd288d649433?auto=format&fit=crop&w=800&q=80" },
+        { id: 4, judul: "Rapat Koordinasi Kader Lapangan se-Kalbar", url: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=800&q=80" }
+      ]
+    };
+
+    let appData = JSON.parse(JSON.stringify(DEFAULT_DATA));
+
+    // RENDER FUNCTIONS
+    function renderPrograms(list) {
+      const container = document.getElementById('programs-grid');
+      if (!container) return;
+      container.innerHTML = list.map(item => `
+        <div class="p-6 rounded-3xl bg-slate-50 border border-slate-200/90 hover:shadow-lg hover:border-emerald-300 transition-all group flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <div class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
+                <i class="${item.ikon || 'fa-solid fa-hand-holding-heart'}"></i>
+              </div>
+              <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-white text-emerald-800 border border-slate-200">${item.kategori}</span>
+            </div>
+            <h3 class="font-extrabold text-base text-slate-900 group-hover:text-emerald-700 transition-colors leading-snug mb-2">${item.judul}</h3>
+            <p class="text-xs text-slate-600 leading-relaxed mb-4">${item.ringkasan}</p>
+          </div>
+          <div class="pt-4 border-t border-slate-200/70 flex items-center justify-between text-[11px]">
+            <span class="text-slate-500 font-semibold"><i class="fa-solid fa-bullseye text-emerald-600 mr-1"></i> ${item.sasaran}</span>
+            <a href="#rekening" class="text-emerald-700 font-bold hover:underline">Donasi &rarr;</a>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderNews(list) {
+      const container = document.getElementById('news-grid');
+      if (!container) return;
+      container.innerHTML = list.map(item => `
+        <article class="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex flex-col">
+          <img src="${item.gambar}" alt="${item.judul}" class="w-full h-48 object-cover">
+          <div class="p-6 flex-grow flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between text-xs mb-2">
+                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">${item.kategori}</span>
+                <span class="text-slate-400 text-[11px]">${item.tanggal}</span>
+              </div>
+              <h3 class="font-bold text-base text-slate-900 mb-2 leading-snug">${item.judul}</h3>
+              <p class="text-xs text-slate-600 leading-relaxed line-clamp-3 mb-4">${item.ringkasan}</p>
+            </div>
+            <button onclick="readNewsDetail(${item.id})" class="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1.5 self-start">
+              <span>Baca Selengkapnya</span>
+              <i class="fa-solid fa-arrow-right text-[10px]"></i>
+            </button>
+          </div>
+        </article>
+      `).join('');
+    }
+
+    function renderPengurus(list) {
+      const container = document.getElementById('pengurus-grid');
+      if (!container) return;
+      container.innerHTML = list.map(item => `
+        <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-center hover:shadow-md transition-shadow">
+          <img src="${item.foto}" alt="${item.nama}" class="w-24 h-24 rounded-full mx-auto mb-3 object-cover border-2 border-emerald-500 shadow-sm">
+          <h4 class="font-extrabold text-sm text-slate-900 leading-tight">${item.nama}</h4>
+          <span class="text-[11px] text-emerald-700 font-bold block mt-1">${item.jabatan}</span>
+          <span class="inline-block mt-2 px-2.5 py-0.5 rounded-full bg-slate-200/80 text-slate-700 font-semibold text-[10px]">
+            <i class="fa-solid fa-location-dot text-[9px] text-emerald-600 mr-1"></i>${item.cabang}
+          </span>
+        </div>
+      `).join('');
+    }
+
+    function renderRekening(list) {
+      const container = document.getElementById('rekening-grid');
+      if (!container) return;
+      container.innerHTML = list.map(item => `
+        <div class="bg-slate-800 rounded-3xl p-6 border border-slate-700 shadow-lg flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <span class="font-extrabold text-sm text-white">${item.nama_bank}</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">${item.kategori}</span>
+            </div>
+            <div class="bg-slate-900/90 p-3.5 rounded-xl border border-slate-700/80 mb-3 flex items-center justify-between">
+              <span class="font-mono font-black text-base text-emerald-400 tracking-wider">${item.no_rekening}</span>
+              <button onclick="copyToClipboard('${item.no_rekening}', 'Nomor Rekening ${item.nama_bank}')" class="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors">
+                Salin
+              </button>
+            </div>
+            <span class="text-xs text-slate-400 block">Atas Nama: <strong class="text-white">${item.atas_nama}</strong></span>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-700/60 flex items-center gap-2 text-[11px] text-emerald-400">
+            <i class="fa-solid fa-circle-check"></i>
+            <span>Rekening Resmi Yayasan Terverifikasi</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderGaleri(list) {
+      const container = document.getElementById('galeri-grid');
+      if (!container) return;
+      container.innerHTML = list.map(item => `
+        <div onclick="openLightbox('${item.url}', '${item.judul}')" class="group relative rounded-2xl overflow-hidden cursor-pointer shadow-sm hover:shadow-lg transition-all h-52 bg-slate-100">
+          <img src="${item.url}" alt="${item.judul}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+          <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+            <span class="text-white text-xs font-bold leading-tight">${item.judul}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // FILTER PENGURUS
+    function filterPengurus(cabang) {
+      document.querySelectorAll('.pengurus-filter-btn').forEach(btn => {
+        if (btn.getAttribute('data-cabang') === cabang) {
+          btn.className = 'pengurus-filter-btn px-4 py-1.5 rounded-full text-xs font-bold bg-emerald-700 text-white shadow-sm';
+        } else {
+          btn.className = 'pengurus-filter-btn px-4 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200';
+        }
+      });
+      if (cabang === 'Semua') {
+        renderPengurus(appData.pengurus);
+      } else {
+        const filtered = appData.pengurus.filter(p => p.cabang.toLowerCase().includes(cabang.toLowerCase()));
+        renderPengurus(filtered);
+      }
+    }
+
+    // READ NEWS MODAL
+    function readNewsDetail(id) {
+      const item = appData.berita.find(b => b.id === id);
+      if (!item) return;
+      document.getElementById('read-judul').textContent = item.judul;
+      document.getElementById('read-kategori').textContent = item.kategori;
+      document.getElementById('read-tanggal').textContent = item.tanggal;
+      document.getElementById('read-gambar').src = item.gambar;
+      document.getElementById('read-konten').textContent = item.isi || item.ringkasan;
+      openModal('modal-berita');
+    }
+
+    // LIGHTBOX MODAL
+    function openLightbox(url, caption) {
+      document.getElementById('lightbox-img').src = url;
+      document.getElementById('lightbox-caption').textContent = caption;
+      openModal('modal-lightbox');
+    }
+
+    // MODAL HELPERS
+    function openModal(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('hidden');
+    }
+    function closeModal(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('hidden');
+    }
+    function toggleMobileNav() {
+      const el = document.getElementById('mobile-nav');
+      if (el) el.classList.toggle('hidden');
+    }
+
+    // TOAST NOTIFIKASI
+    function showToast(msg, isError = false) {
+      const toast = document.getElementById('toast-box');
+      const text = document.getElementById('toast-msg');
+      const icon = document.getElementById('toast-icon');
+      
+      text.textContent = msg;
+      if (isError) {
+        toast.className = 'fixed bottom-6 left-6 z-50 transform translate-y-0 opacity-100 px-4 py-3 rounded-2xl shadow-xl text-xs font-bold flex items-center gap-2.5 bg-rose-600 text-white';
+        icon.className = 'fa-solid fa-triangle-exclamation';
+      } else {
+        toast.className = 'fixed bottom-6 left-6 z-50 transform translate-y-0 opacity-100 px-4 py-3 rounded-2xl shadow-xl text-xs font-bold flex items-center gap-2.5 bg-emerald-800 text-white';
+        icon.className = 'fa-solid fa-circle-check text-emerald-300';
+      }
+
+      setTimeout(() => {
+        toast.className = 'fixed bottom-6 left-6 z-50 transform -translate-y-12 opacity-0 pointer-events-none px-4 py-3 rounded-2xl shadow-xl text-xs font-bold flex items-center gap-2.5';
+      }, 3500);
+    }
+
+    // COPY TO CLIPBOARD
+    function copyToClipboard(text, label) {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast(`${label} berhasil disalin ke clipboard!`);
+      }).catch(() => {
+        showToast(`Gagal menyalin. Silakan salin manual: ${text}`, true);
+      });
+    }
+
+    // TOSS TBC QUIZ
+    function calculateTbcScore() {
+      const q1 = parseInt(document.querySelector('input[name="tbc_q1"]:checked')?.value || '0');
+      const q2 = parseInt(document.querySelector('input[name="tbc_q2"]:checked')?.value || '0');
+      const q3 = parseInt(document.querySelector('input[name="tbc_q3"]:checked')?.value || '0');
+      const q4 = parseInt(document.querySelector('input[name="tbc_q4"]:checked')?.value || '0');
+      const q5 = parseInt(document.querySelector('input[name="tbc_q5"]:checked')?.value || '0');
+      
+      const total = q1 + q2 + q3 + q4 + q5;
+      const resultBox = document.getElementById('tbc-result-box');
+      const questionsEl = document.getElementById('tbc-questions');
+      const resultEl = document.getElementById('tbc-result');
+
+      questionsEl.classList.add('hidden');
+      resultEl.classList.remove('hidden');
+
+      if (q1 === 1 || total >= 2) {
+        resultBox.className = 'p-4 rounded-2xl text-xs leading-relaxed bg-amber-50 border border-amber-200 text-amber-950';
+        resultBox.innerHTML = `
+          <strong class="text-sm font-bold block mb-1 text-amber-800"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Perhatian: Terindikasi Gejala TBC</strong>
+          Anda mengalami gejala khas (batuk lama &ge; 2 minggu atau gejala penyerta lainnya). Sangat disarankan untuk segera memeriksakan dahak Tes Cepat Molekuler (TCM) ke Puskesmas terdekat atau hubungi kader Yayasan Bina Asri Kalbar untuk didampingi secara gratis.
+        `;
+      } else {
+        resultBox.className = 'p-4 rounded-2xl text-xs leading-relaxed bg-emerald-50 border border-emerald-200 text-emerald-950';
+        resultBox.innerHTML = `
+          <strong class="text-sm font-bold block mb-1 text-emerald-800"><i class="fa-solid fa-circle-check mr-1"></i> Hasil: Risiko Rendah</strong>
+          Alhamdulillah, Anda saat ini tidak menunjukkan gejala khas TBC. Tetap jaga imunitas tubuh, konsumsi makanan bergizi, dan pastikan ventilasi udara di rumah mengalir dengan baik.
+        `;
+      }
+    }
+
+    function resetTbcQuiz() {
+      document.getElementById('tbc-questions').classList.remove('hidden');
+      document.getElementById('tbc-result').classList.add('hidden');
+    }
+
+    // FORM SUBMIT (PESAN MASUK KE SPREADSHEET)
+    function handleFormSubmit(e) {
+      e.preventDefault();
+      const nama = document.getElementById('form-nama').value.trim();
+      const telepon = document.getElementById('form-telepon').value.trim();
+      const email = document.getElementById('form-email').value.trim();
+      const subjek = document.getElementById('form-subjek').value;
+      const pesan = document.getElementById('form-pesan').value.trim();
+
+      const btn = document.getElementById('btn-submit-pesan');
+      const btnText = document.getElementById('btn-submit-text');
+
+      btn.disabled = true;
+      btnText.textContent = 'Mengirim ke Spreadsheet...';
+
+      const payload = {
+        action: 'submitPesan',
+        nama: nama,
+        telepon: telepon,
+        email: email,
+        subjek: subjek,
+        pesan: pesan,
+        tanggal: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+      };
+
+      // Cek jika berjalan di Google Apps Script Web App
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(function(res) {
+            btn.disabled = false;
+            btnText.textContent = 'Kirim Pesan ke Yayasan';
+            document.getElementById('contact-form').reset();
+            showToast('Pesan Anda berhasil terkirim dan disimpan di Spreadsheet Yayasan!');
+          })
+          .withFailureHandler(function(err) {
+            btn.disabled = false;
+            btnText.textContent = 'Kirim Pesan ke Yayasan';
+            showToast('Gagal mengirim ke Spreadsheet: ' + err.toString(), true);
+          })
+          .submitPesan(payload);
+      } else {
+        // Fallback simulasi
+        setTimeout(() => {
+          btn.disabled = false;
+          btnText.textContent = 'Kirim Pesan ke Yayasan';
+          document.getElementById('contact-form').reset();
+          showToast('Pesan berhasil terkirim! (Tersimpan di database)');
+        }, 800);
+      }
+    }
+
+    // LOGIN ADMIN SUBMIT
+    function handleLoginSubmit(e) {
+      e.preventDefault();
+      const u = document.getElementById('login-username').value.trim();
+      const p = document.getElementById('login-password').value.trim();
+      const btn = document.getElementById('btn-login');
+
+      btn.disabled = true;
+      btn.textContent = 'Memverifikasi...';
+
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(function(res) {
+            btn.disabled = false;
+            btn.textContent = 'Masuk ke Dashboard';
+            if (res && res.success) {
+              closeModal('modal-login');
+              showToast('Login berhasil! Selamat datang Admin ' + (res.user?.nama || ''));
+            } else {
+              showToast(res.message || 'Username atau password salah', true);
+            }
+          })
+          .withFailureHandler(function(err) {
+            btn.disabled = false;
+            btn.textContent = 'Masuk ke Dashboard';
+            showToast('Koneksi Apps Script gagal: ' + err.toString(), true);
+          })
+          .verifyLogin(u, p);
+      } else {
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.textContent = 'Masuk ke Dashboard';
+          if (u === 'admin' && p === 'admin123') {
+            closeModal('modal-login');
+            showToast('Login Admin Berhasil (Simulasi)!');
+          } else {
+            showToast('Username atau password salah (Gunakan admin / admin123)', true);
+          }
+        }, 600);
+      }
+    }
+
+    // INITIAL LOAD FROM GOOGLE SHEET VIA APPS SCRIPT
+    function loadDataFromGoogleSheet() {
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(function(data) {
+            if (data) {
+              if (data.kontenWeb) {
+                appData.kontenWeb = Object.assign(appData.kontenWeb, data.kontenWeb);
+                // Update text elements if exist
+                if (data.kontenWeb.hero_title) document.getElementById('hero-title').textContent = data.kontenWeb.hero_title;
+                if (data.kontenWeb.hero_subtitle) document.getElementById('hero-subtitle').textContent = data.kontenWeb.hero_subtitle;
+                if (data.kontenWeb.hero_badge) document.getElementById('hero-badge').textContent = data.kontenWeb.hero_badge;
+                if (data.kontenWeb.kontak_sk) {
+                  document.getElementById('top-sk').textContent = data.kontenWeb.kontak_sk;
+                  document.getElementById('profil-sk').textContent = data.kontenWeb.kontak_sk;
+                }
+                if (data.kontenWeb.kontak_telepon) {
+                  document.getElementById('top-phone').textContent = data.kontenWeb.kontak_telepon;
+                  document.getElementById('kontak-wa').textContent = data.kontenWeb.kontak_telepon;
+                }
+                if (data.kontenWeb.kontak_email) document.getElementById('kontak-email').textContent = data.kontenWeb.kontak_email;
+                if (data.kontenWeb.kontak_alamat) document.getElementById('kontak-alamat').textContent = data.kontenWeb.kontak_alamat;
+              }
+              if (data.program && data.program.length > 0) {
+                appData.program = data.program;
+                renderPrograms(data.program);
+              }
+              if (data.berita && data.berita.length > 0) {
+                appData.berita = data.berita;
+                renderNews(data.berita);
+              }
+              if (data.pengurus && data.pengurus.length > 0) {
+                appData.pengurus = data.pengurus;
+                renderPengurus(data.pengurus);
+              }
+              if (data.rekening && data.rekening.length > 0) {
+                appData.rekening = data.rekening;
+                renderRekening(data.rekening);
+              }
+              if (data.galeri && data.galeri.length > 0) {
+                appData.galeri = data.galeri;
+                renderGaleri(data.galeri);
+              }
+            }
+          })
+          .withFailureHandler(function(err) {
+            console.warn('Apps Script sync info: Menggunakan data default awal.', err);
+          })
+          .getAllData();
+      }
+    }
+
+    // INIT PAGE
+    window.addEventListener('DOMContentLoaded', () => {
+      renderPrograms(appData.program);
+      renderNews(appData.berita);
+      renderPengurus(appData.pengurus);
+      renderRekening(appData.rekening);
+      renderGaleri(appData.galeri);
+      
+      // Ambil data terbaru dari spreadsheet jika sudah online
+      loadDataFromGoogleSheet();
+    });
+  </script>
+</body>
+</html>

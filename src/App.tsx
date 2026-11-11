@@ -14,7 +14,6 @@ import { ProgramSection } from './components/ProgramSection';
 import { BeritaSection } from './components/BeritaSection';
 import { GaleriSection } from './components/GaleriSection';
 import { PengurusSection } from './components/PengurusSection';
-import { DonasiSection } from './components/DonasiSection';
 import { KontakSection } from './components/KontakSection';
 import { Footer } from './components/Footer';
 import { FloatingWhatsApp } from './components/FloatingWhatsApp';
@@ -34,7 +33,6 @@ import {
 } from './components/modals/CrudModals';
 import { AiBeritaGeneratorModal } from './components/modals/AiBeritaGeneratorModal';
 import { DeployGuideModal } from './components/modals/DeployGuideModal';
-import { TbcScreeningModal } from './components/modals/TbcScreeningModal';
 import { BeritaItem, ProgramItem, GaleriItem, PengurusItem, BankAccount } from './types';
 
 const MainApplication: React.FC = () => {
@@ -87,10 +85,9 @@ const MainApplication: React.FC = () => {
     sectionPrefix?: 'program' | 'berita' | 'galeri' | 'pengurus';
   }>({ type: null });
 
-  // Dedicated AI, Deploy Guide, and TB screening modal states
+  // Dedicated AI and Deploy Guide modal states
   const [aiBeritaOpen, setAiBeritaOpen] = useState(false);
   const [deployGuideOpen, setDeployGuideOpen] = useState(false);
-  const [tbcScreeningOpen, setTbcScreeningOpen] = useState(false);
 
   // Keyboard shortcut Ctrl+S / Cmd+S to save inline changes
   useEffect(() => {
@@ -196,14 +193,12 @@ const MainApplication: React.FC = () => {
       {/* Main Navbar */}
       <HeaderNavbar
         onOpenAdminLogin={() => setLoginModalOpen(true)}
-        onOpenTbcScreening={() => setTbcScreeningOpen(true)}
       />
 
       {/* Hero Banner */}
       <HeroSection
         onOpenEditHero={() => setQuickModal({ type: 'hero' })}
         onOpenAdminLogin={() => setLoginModalOpen(true)}
-        onOpenTbcScreening={() => setTbcScreeningOpen(true)}
       />
 
       {/* Impact Stats */}
@@ -221,7 +216,6 @@ const MainApplication: React.FC = () => {
         onOpenAddProgram={() => setProgramModal({ isOpen: true, item: null })}
         onOpenEditProgram={(item) => setProgramModal({ isOpen: true, item })}
         onOpenEditSectionHeader={(prefix) => setQuickModal({ type: 'sectionHeader', sectionPrefix: prefix })}
-        onOpenTbcScreening={() => setTbcScreeningOpen(true)}
       />
 
       {/* News & Updates */}
@@ -244,13 +238,6 @@ const MainApplication: React.FC = () => {
         onOpenAddPengurus={(defaultCabang) => setPengurusModal({ isOpen: true, item: null, defaultCabang })}
         onOpenEditPengurus={(item) => setPengurusModal({ isOpen: true, item, defaultCabang: item.cabang })}
         onOpenEditSectionHeader={(prefix) => setQuickModal({ type: 'sectionHeader', sectionPrefix: prefix })}
-      />
-
-      {/* Infaq & Official Bank Accounts */}
-      <DonasiSection
-        onOpenAddBank={() => setBankModal({ isOpen: true, item: null })}
-        onOpenEditBank={(item) => setBankModal({ isOpen: true, item })}
-        onOpenEditDonasi={() => setQuickModal({ type: 'donasi' })}
       />
 
       {/* Contact & Inquiry Message Form */}
@@ -334,12 +321,6 @@ const MainApplication: React.FC = () => {
       <DeployGuideModal
         isOpen={deployGuideOpen}
         onClose={() => setDeployGuideOpen(false)}
-      />
-
-      {/* TOSS TBC Self Screening Modal */}
-      <TbcScreeningModal
-        isOpen={tbcScreeningOpen}
-        onClose={() => setTbcScreeningOpen(false)}
       />
 
       {/* Global Toast Alerts */}

@@ -2,20 +2,18 @@ import React, { useState } from 'react';
 import { useFoundation } from '../context/FoundationContext';
 import { EditableText } from './EditableText';
 import { ProgramItem } from '../types';
-import { Heart, Plus, Edit2, Trash2, Activity } from 'lucide-react';
+import { Plus, Edit2, Trash2, MessageCircle } from 'lucide-react';
 
 interface ProgramSectionProps {
   onOpenAddProgram: () => void;
   onOpenEditProgram: (program: ProgramItem) => void;
   onOpenEditSectionHeader: (prefix: 'program' | 'berita' | 'galeri' | 'pengurus') => void;
-  onOpenTbcScreening?: () => void;
 }
 
 export const ProgramSection: React.FC<ProgramSectionProps> = ({
   onOpenAddProgram,
   onOpenEditProgram,
-  onOpenEditSectionHeader,
-  onOpenTbcScreening
+  onOpenEditSectionHeader
 }) => {
   const { program, deleteProgram, adminSession } = useFoundation();
   const [activeFilter, setActiveFilter] = useState<string>('Semua');
@@ -34,8 +32,8 @@ export const ProgramSection: React.FC<ProgramSectionProps> = ({
     return combined.includes(activeFilter.toLowerCase());
   });
 
-  const scrollToDonasi = () => {
-    const el = document.getElementById('donasi');
+  const scrollToKontak = () => {
+    const el = document.getElementById('kontak');
     if (el) el.scrollIntoView({ behavior: 'smooth' });
   };
 
@@ -137,23 +135,14 @@ export const ProgramSection: React.FC<ProgramSectionProps> = ({
                     </div>
                   </div>
 
-                  {/* Support CTA & Skrining CTA */}
+                  {/* Program Action CTA */}
                   <div className="space-y-2">
-                    {onOpenTbcScreening && item.nama.toLowerCase().includes('skrining') && (
-                      <button
-                        onClick={onOpenTbcScreening}
-                        className="w-full py-2 px-3 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all"
-                      >
-                        <Activity className="w-3.5 h-3.5 text-teal-200" />
-                        <span>Mulai Skrining TBC Mandiri</span>
-                      </button>
-                    )}
                     <button
-                      onClick={scrollToDonasi}
+                      onClick={scrollToKontak}
                       className="w-full py-2.5 px-4 rounded-xl bg-emerald-50 hover:bg-emerald-700 text-emerald-800 hover:text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all"
                     >
-                      <Heart className="w-3.5 h-3.5" />
-                      <span>Dukung Program Ini</span>
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      <span>Informasi & Kemitraan</span>
                     </button>
                   </div>
 

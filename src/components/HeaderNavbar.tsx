@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useFoundation } from '../context/FoundationContext';
 import { EditableText } from './EditableText';
-import { Menu, X, Heart, Activity } from 'lucide-react';
+import { Menu, X, MessageSquare } from 'lucide-react';
 
 interface HeaderNavbarProps {
   onOpenAdminLogin: () => void;
-  onOpenTbcScreening?: () => void;
 }
 
-export const HeaderNavbar: React.FC<HeaderNavbarProps> = ({ onOpenAdminLogin, onOpenTbcScreening }) => {
+export const HeaderNavbar: React.FC<HeaderNavbarProps> = ({ onOpenAdminLogin }) => {
   const { kontenWeb, adminSession, setActiveView } = useFoundation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState('home');
@@ -35,7 +34,7 @@ export const HeaderNavbar: React.FC<HeaderNavbarProps> = ({ onOpenAdminLogin, on
 
   useEffect(() => {
     const handleScroll = () => {
-      const sections = ['home', 'profil', 'program', 'berita', 'galeri', 'pengurus', 'donasi', 'kontak'];
+      const sections = ['home', 'profil', 'program', 'berita', 'galeri', 'pengurus', 'kontak'];
       const scrollY = window.scrollY + 140;
 
       for (const sectionId of sections) {
@@ -167,44 +166,24 @@ export const HeaderNavbar: React.FC<HeaderNavbarProps> = ({ onOpenAdminLogin, on
               Kontak
             </button>
 
-            {/* Skrining TBC Button */}
-            {onOpenTbcScreening && (
-              <button
-                onClick={onOpenTbcScreening}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold text-xs border border-teal-200 shadow-sm transition-all hover:scale-105"
-              >
-                <Activity className="w-3.5 h-3.5 text-teal-600 animate-pulse" />
-                <span>Skrining TBC</span>
-              </button>
-            )}
-
-            {/* Donation CTA */}
+            {/* Hubungi Kami CTA */}
             <button
-              onClick={() => scrollTo('donasi')}
-              className="ml-2 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-sm shadow-md shadow-amber-500/25 hover:shadow-lg hover:shadow-amber-500/35 hover:-translate-y-0.5 transition-all"
+              onClick={() => scrollTo('kontak')}
+              className="ml-3 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-emerald-800 hover:bg-emerald-700 text-white font-bold text-sm shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5"
             >
-              <Heart className="w-4 h-4 fill-slate-950 text-slate-950" />
-              <span>Donasi Sekarang</span>
+              <MessageSquare className="w-4 h-4 text-emerald-200" />
+              <span>Hubungi Kami</span>
             </button>
           </nav>
 
           {/* Mobile Menu Toggle Button */}
           <div className="flex items-center lg:hidden gap-2">
-            {onOpenTbcScreening && (
-              <button
-                onClick={onOpenTbcScreening}
-                className="px-3 py-1.5 rounded-full bg-teal-50 text-teal-800 font-bold text-xs flex items-center gap-1 border border-teal-200"
-              >
-                <Activity className="w-3 h-3 text-teal-600" />
-                <span>Skrining</span>
-              </button>
-            )}
             <button
-              onClick={() => scrollTo('donasi')}
-              className="px-3.5 py-2 rounded-full bg-amber-500 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow"
+              onClick={() => scrollTo('kontak')}
+              className="px-3.5 py-2 rounded-full bg-emerald-800 text-white font-bold text-xs flex items-center gap-1.5 shadow"
             >
-              <Heart className="w-3.5 h-3.5 fill-slate-950" />
-              <span>Donasi</span>
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>Kontak</span>
             </button>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -263,23 +242,11 @@ export const HeaderNavbar: React.FC<HeaderNavbarProps> = ({ onOpenAdminLogin, on
             >
               Kontak & Narahubung
             </button>
-            {onOpenTbcScreening && (
-              <button
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  onOpenTbcScreening();
-                }}
-                className="w-full text-center px-4 py-2.5 rounded-xl bg-teal-50 text-teal-800 font-bold text-sm border border-teal-200 flex items-center justify-center gap-2"
-              >
-                <Activity className="w-4 h-4 text-teal-600" />
-                <span>🩺 Cek Gejala / Skrining TBC Mandiri</span>
-              </button>
-            )}
             <button
-              onClick={() => scrollTo('donasi')}
-              className="w-full text-center px-4 py-3 mt-1 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-bold text-sm shadow-md"
+              onClick={() => scrollTo('kontak')}
+              className="w-full text-center px-4 py-3 mt-2 rounded-xl bg-emerald-800 text-white font-bold text-sm shadow-md"
             >
-              ❤️ Salurkan Infaq & Donasi
+              Hubungi Sekretariat Yayasan
             </button>
           </div>
         </div>

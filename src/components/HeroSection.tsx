@@ -1,16 +1,15 @@
 import React from 'react';
 import { useFoundation } from '../context/FoundationContext';
 import { EditableText } from './EditableText';
-import { Heart, BookOpen, MessageCircle, Edit2, Activity } from 'lucide-react';
+import { BookOpen, MessageCircle, Edit2 } from 'lucide-react';
 import { ScrollReveal } from './common/ScrollReveal';
 
 interface HeroSectionProps {
   onOpenEditHero: () => void;
   onOpenAdminLogin?: () => void;
-  onOpenTbcScreening?: () => void;
 }
 
-export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenEditHero, onOpenAdminLogin, onOpenTbcScreening }) => {
+export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenEditHero, onOpenAdminLogin }) => {
   const { kontenWeb, adminSession, setActiveView } = useFoundation();
   const [lastTap, setLastTap] = React.useState(0);
 
@@ -110,37 +109,26 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenEditHero, onOpen
         <ScrollReveal direction="up" delay={0.4} duration={0.6}>
           <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 relative z-20">
             <button
-              onClick={() => scrollTo('donasi')}
-              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-extrabold text-sm sm:text-base shadow-xl shadow-amber-500/30 hover:shadow-2xl hover:shadow-amber-500/40 hover:-translate-y-0.5 transition-all"
+              onClick={() => scrollTo('program')}
+              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 text-slate-950 font-extrabold text-sm sm:text-base shadow-xl shadow-emerald-500/25 hover:shadow-2xl hover:shadow-emerald-500/35 hover:-translate-y-0.5 transition-all"
             >
-              <Heart className="w-4 h-4 fill-slate-950" />
-              <span>{kontenWeb.hero_cta_donasi || 'Salurkan Donasi'}</span>
+              <BookOpen className="w-4 h-4 text-emerald-950" />
+              <span>{kontenWeb.hero_cta_program || 'Jelajahi Program Kerja'}</span>
             </button>
 
             <button
-              onClick={() => scrollTo('program')}
+              onClick={() => scrollTo('profil')}
               className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full bg-white/15 hover:bg-white text-white hover:text-emerald-950 backdrop-blur-md border border-white/30 font-bold text-sm sm:text-base transition-all hover:shadow-lg"
             >
-              <BookOpen className="w-4 h-4" />
-              <span>{kontenWeb.hero_cta_program || 'Jelajahi Program'}</span>
+              <span>Tentang Yayasan</span>
             </button>
-
-            {onOpenTbcScreening && (
-              <button
-                onClick={onOpenTbcScreening}
-                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full bg-teal-500/30 hover:bg-teal-500 text-teal-100 hover:text-white backdrop-blur-md border border-teal-300/40 font-bold text-sm sm:text-base transition-all shadow-lg hover:shadow-teal-500/30 hover:-translate-y-0.5"
-              >
-                <Activity className="w-4 h-4 text-teal-300 animate-pulse" />
-                <span>Skrining Gejala TBC</span>
-              </button>
-            )}
 
             <button
               onClick={() => scrollTo('kontak')}
               className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm border border-white/20 font-bold text-sm sm:text-base transition-all"
             >
               <MessageCircle className="w-4 h-4" />
-              <span>{kontenWeb.hero_cta_kontak || 'Hubungi Kami'}</span>
+              <span>{kontenWeb.hero_cta_kontak || 'Hubungi Sekretariat'}</span>
             </button>
           </div>
         </ScrollReveal>

@@ -17,7 +17,7 @@ interface AdminLiveToolbarProps {
   onOpenAddProgram: () => void;
   onOpenAddGaleri: () => void;
   onOpenAddPengurus: () => void;
-  onOpenAddBank: () => void;
+  onOpenAddBank?: () => void;
   onOpenAiBerita?: () => void;
   onOpenDeployGuide?: () => void;
 }
@@ -124,12 +124,14 @@ export const AdminLiveToolbar: React.FC<AdminLiveToolbarProps> = ({
             >
               <Plus className="w-3.5 h-3.5" /> Pengurus
             </button>
-            <button
-              onClick={onOpenAddBank}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-white/10 hover:bg-white/20 text-white text-xs font-medium transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" /> Rekening
-            </button>
+            {onOpenAddBank && (
+              <button
+                onClick={onOpenAddBank}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-white/10 hover:bg-white/20 text-white text-xs font-medium transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" /> Rekening
+              </button>
+            )}
 
             <button
               onClick={() => {

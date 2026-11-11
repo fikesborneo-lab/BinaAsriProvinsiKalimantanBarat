@@ -140,8 +140,8 @@ export const Footer: React.FC<FooterProps> = ({ onOpenAdminLogin, onOpenEditFoot
                 </button>
               </li>
               <li>
-                <button onClick={() => scrollTo('donasi')} className="hover:text-amber-400 transition-colors">
-                  Infaq & Sedekah
+                <button onClick={() => scrollTo('kontak')} className="hover:text-amber-400 transition-colors">
+                  Narahubung & Konsultasi
                 </button>
               </li>
             </ul>

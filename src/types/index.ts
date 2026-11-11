@@ -110,6 +110,7 @@ export interface PengurusItem {
   foto: string;
   cabang: string; // e.g. "Pusat / Wilayah", "Kota Pontianak", "Kabupaten Kubu Raya", "Kabupaten Mempawah", "Kabupaten Sanggau", "Kabupaten Sintang", "Kabupaten Ketapang", "Kota Singkawang", "Kabupaten Sambas"
   kontak?: string;
+  tampil?: boolean; // true = tampil di publik (default), false = disembunyikan
 }
 
 export interface PesanItem {

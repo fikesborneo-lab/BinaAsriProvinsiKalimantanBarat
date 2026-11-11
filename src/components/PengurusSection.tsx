@@ -12,7 +12,9 @@ import {
   Users,
   ShieldCheck,
   Building2,
-  ChevronRight
+  ChevronRight,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 interface PengurusSectionProps {
@@ -26,11 +28,14 @@ export const PengurusSection: React.FC<PengurusSectionProps> = ({
   onOpenEditPengurus,
   onOpenEditSectionHeader
 }) => {
-  const { pengurus, deletePengurus, adminSession } = useFoundation();
+  const { pengurus, deletePengurus, togglePengurusVisibility, adminSession } = useFoundation();
   const [selectedCabang, setSelectedCabang] = useState<string>('Semua');
 
-  // Filtered list
-  const filteredPengurus = pengurus.filter((p) => {
+  // List accessible to current viewer: visitors only see visible pengurus, admin sees all
+  const accessiblePengurus = adminSession ? pengurus : pengurus.filter((p) => p.tampil !== false);
+  const hiddenCount = pengurus.filter((p) => p.tampil === false).length;
+
+  const filteredPengurus = accessiblePengurus.filter((p) => {
     if (selectedCabang === 'Semua') return true;
     return (p.cabang || 'Pusat / SR Kalbar') === selectedCabang;
   });
@@ -104,13 +109,13 @@ export const PengurusSection: React.FC<PengurusSectionProps> = ({
               <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-extrabold ${
                 selectedCabang === 'Semua' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
               }`}>
-                {pengurus.length}
+                {accessiblePengurus.length}
               </span>
             </button>
 
             {/* Distinct Button for Pusat / SR Kalbar (Induk) */}
             {DAFTAR_CABANG_DAERAH.filter((c) => c.tipe === 'Pusat').map((c) => {
-              const count = pengurus.filter((p) => (p.cabang || 'Pusat / SR Kalbar') === c.nama).length;
+              const count = accessiblePengurus.filter((p) => (p.cabang || 'Pusat / SR Kalbar') === c.nama).length;
               const isSelected = selectedCabang === c.nama;
               return (
                 <button
@@ -139,7 +144,7 @@ export const PengurusSection: React.FC<PengurusSectionProps> = ({
 
             {/* 14 SSR Cabang Daerah Buttons */}
             {DAFTAR_CABANG_DAERAH.filter((c) => c.tipe !== 'Pusat').map((c) => {
-              const count = pengurus.filter((p) => p.cabang === c.nama).length;
+              const count = accessiblePengurus.filter((p) => p.cabang === c.nama).length;
               const isSelected = selectedCabang === c.nama;
               return (
                 <button
@@ -205,73 +210,136 @@ export const PengurusSection: React.FC<PengurusSectionProps> = ({
           </div>
         )}
 
+        {/* Mode Admin Notice jika ada profil disembunyikan */}
+        {adminSession && hiddenCount > 0 && (
+          <div className="mb-6 p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between gap-3 flex-wrap animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <EyeOff className="w-4 h-4 text-amber-700 shrink-0" />
+              <span>
+                <strong>Mode Admin:</strong> Terdapat <strong>{hiddenCount} profil</strong> yang disembunyikan dari pengunjung umum (ditandai dengan border putus-putus dan badge Sembunyi).
+              </span>
+            </div>
+            <span className="text-[11px] font-semibold text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300">
+              Admin dapat langsung klik &quot;Tampilkan&quot; pada kartu di bawah
+            </span>
+          </div>
+        )}
+
         {/* Board Members Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {filteredPengurus.length > 0 ? (
-            filteredPengurus.map((item) => (
-              <div
-                key={item.id}
-                className="bg-white rounded-2xl p-6 text-center border border-slate-200/90 shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all flex flex-col items-center group relative overflow-hidden"
-              >
-                {/* Branch Badge on top */}
-                <span className={`absolute top-3.5 right-3.5 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border ${
-                  (item.cabang || 'Pusat / SR Kalbar') === 'Pusat / SR Kalbar'
-                    ? 'bg-amber-50 text-amber-900 border-amber-300'
-                    : 'bg-emerald-50 text-emerald-800 border-emerald-100'
-                }`}>
-                  {(item.cabang || 'Pusat / SR Kalbar') === 'Pusat / SR Kalbar' ? 'Pusat (SR)' : item.cabang}
-                </span>
+            filteredPengurus.map((item) => {
+              const isHidden = item.tampil === false;
+              return (
+                <div
+                  key={item.id}
+                  className={`rounded-2xl p-6 text-center shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all flex flex-col items-center group relative overflow-hidden ${
+                    isHidden
+                      ? 'bg-amber-50/50 border-2 border-dashed border-amber-300 ring-2 ring-amber-200/50'
+                      : 'bg-white border border-slate-200/90'
+                  }`}
+                >
+                  {/* Status Disembunyikan (Khusus Admin) */}
+                  {isHidden && (
+                    <span className="absolute top-3.5 left-3.5 text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-200/90 text-amber-950 border border-amber-300 flex items-center gap-1 shadow-xs">
+                      <EyeOff className="w-3 h-3 text-amber-800" />
+                      <span>Sembunyi</span>
+                    </span>
+                  )}
 
-                {/* Avatar with gradient border */}
-                <div className="relative my-3">
-                  <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full p-1 bg-gradient-to-tr from-emerald-600 via-teal-500 to-amber-400 group-hover:scale-105 transition-transform duration-300 shadow-md">
-                    <img
-                      src={item.foto || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200'}
-                      alt={item.nama}
-                      className="w-full h-full rounded-full object-cover bg-slate-50"
-                      loading="lazy"
-                    />
+                  {/* Branch Badge on top */}
+                  <span className={`absolute top-3.5 right-3.5 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border ${
+                    (item.cabang || 'Pusat / SR Kalbar') === 'Pusat / SR Kalbar'
+                      ? 'bg-amber-50 text-amber-900 border-amber-300'
+                      : 'bg-emerald-50 text-emerald-800 border-emerald-100'
+                  }`}>
+                    {(item.cabang || 'Pusat / SR Kalbar') === 'Pusat / SR Kalbar' ? 'Pusat (SR)' : item.cabang}
+                  </span>
+
+                  {/* Avatar with gradient border */}
+                  <div className="relative my-3">
+                    <div
+                      className={`w-24 h-24 sm:w-28 sm:h-28 rounded-full p-1 group-hover:scale-105 transition-transform duration-300 shadow-md ${
+                        isHidden
+                          ? 'bg-gradient-to-tr from-slate-400 to-amber-300'
+                          : 'bg-gradient-to-tr from-emerald-600 via-teal-500 to-amber-400'
+                      }`}
+                    >
+                      <img
+                        src={item.foto || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200'}
+                        alt={item.nama}
+                        className={`w-full h-full rounded-full object-cover bg-slate-50 ${
+                          isHidden ? 'grayscale opacity-75' : ''
+                        }`}
+                        loading="lazy"
+                      />
+                    </div>
                   </div>
+
+                  <h4 className="font-extrabold text-slate-900 text-base leading-snug mb-1">
+                    {item.nama}
+                  </h4>
+                  <p className="text-xs sm:text-sm font-semibold text-emerald-700 mb-2">
+                    {item.jabatan}
+                  </p>
+
+                  {item.kontak && (
+                    <div className="inline-flex items-center gap-1 text-[11px] text-slate-500 font-medium mb-3">
+                      <Phone className="w-3 h-3 text-emerald-600" />
+                      <span>{item.kontak}</span>
+                    </div>
+                  )}
+
+                  {/* Direct Admin Card Actions */}
+                  {adminSession && (
+                    <div className="w-full flex gap-1.5 pt-3 border-t border-dashed border-slate-200 mt-auto">
+                      <button
+                        onClick={() => togglePengurusVisibility(item.id)}
+                        className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1 transition-colors ${
+                          isHidden
+                            ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800'
+                            : 'bg-amber-100 hover:bg-amber-200 text-amber-900'
+                        }`}
+                        title={isHidden ? 'Klik untuk tampilkan di web publik' : 'Klik untuk sembunyikan dari web publik'}
+                      >
+                        {isHidden ? (
+                          <>
+                            <Eye className="w-3 h-3" />
+                            <span>Tampilkan</span>
+                          </>
+                        ) : (
+                          <>
+                            <EyeOff className="w-3 h-3" />
+                            <span>Sembunyikan</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        onClick={() => onOpenEditPengurus(item)}
+                        className="p-1.5 px-2.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-xs flex items-center justify-center gap-1 transition-colors"
+                        title="Edit Data Pengurus"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                        <span className="hidden sm:inline">Edit</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          if (confirm(`Hapus pengurus "${item.nama}" dari cabang "${item.cabang}"?`)) {
+                            deletePengurus(item.id);
+                          }
+                        }}
+                        className="p-1.5 px-2.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center justify-center gap-1 transition-colors"
+                        title="Hapus Pengurus"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
                 </div>
-
-                <h4 className="font-extrabold text-slate-900 text-base leading-snug mb-1">
-                  {item.nama}
-                </h4>
-                <p className="text-xs sm:text-sm font-semibold text-emerald-700 mb-2">
-                  {item.jabatan}
-                </p>
-
-                {item.kontak && (
-                  <div className="inline-flex items-center gap-1 text-[11px] text-slate-500 font-medium mb-3">
-                    <Phone className="w-3 h-3 text-emerald-600" />
-                    <span>{item.kontak}</span>
-                  </div>
-                )}
-
-                {/* Direct Admin Card Actions */}
-                {adminSession && (
-                  <div className="w-full flex gap-2 pt-3 border-t border-dashed border-slate-200 mt-auto">
-                    <button
-                      onClick={() => onOpenEditPengurus(item)}
-                      className="flex-1 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-xs flex items-center justify-center gap-1 transition-colors"
-                    >
-                      <Edit2 className="w-3 h-3" /> Edit
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (confirm(`Hapus pengurus "${item.nama}" dari cabang "${item.cabang}"?`)) {
-                          deletePengurus(item.id);
-                        }
-                      }}
-                      className="py-1.5 px-3 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center justify-center gap-1 transition-colors"
-                      title="Hapus Pengurus"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))
+              );
+            })
           ) : (
             <div className="col-span-full bg-white rounded-2xl p-12 text-center border border-slate-200 text-slate-500">
               <Users className="w-12 h-12 mx-auto text-slate-300 mb-3" />

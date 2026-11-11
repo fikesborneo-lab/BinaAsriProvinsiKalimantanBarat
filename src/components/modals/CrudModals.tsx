@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useFoundation } from '../../context/FoundationContext';
 import { BeritaItem, ProgramItem, PengurusItem, BankAccount, KontenWeb } from '../../types';
 import { DAFTAR_CABANG_DAERAH } from '../../data/defaultData';
-import { X, Save } from 'lucide-react';
+import { X, Save, Eye, EyeOff } from 'lucide-react';
+
+
+
 
 /* =========================================================================
    1. BERITA FORM MODAL (Add / Edit)
@@ -394,6 +397,7 @@ export const PengurusFormModal: React.FC<PengurusModalProps> = ({ isOpen, item, 
   const [cabang, setCabang] = useState('Pusat / SR Kalbar');
   const [kontak, setKontak] = useState('');
   const [foto, setFoto] = useState('');
+  const [tampil, setTampil] = useState(true);
 
   useEffect(() => {
     if (item) {
@@ -403,12 +407,14 @@ export const PengurusFormModal: React.FC<PengurusModalProps> = ({ isOpen, item, 
       setCabang(currentCabang);
       setKontak(item.kontak || '');
       setFoto(item.foto || '');
+      setTampil(item.tampil !== false);
     } else {
       setNama('');
       setJabatan('');
       setCabang(defaultCabang || 'Pusat / SR Kalbar');
       setKontak('');
       setFoto('');
+      setTampil(true);
     }
   }, [item, defaultCabang, isOpen]);
 
@@ -424,7 +430,8 @@ export const PengurusFormModal: React.FC<PengurusModalProps> = ({ isOpen, item, 
         jabatan,
         cabang,
         kontak: kontak.trim() || undefined,
-        foto: foto.trim() || fallbackPhoto
+        foto: foto.trim() || fallbackPhoto,
+        tampil,
       });
     } else {
       addPengurus({
@@ -432,7 +439,8 @@ export const PengurusFormModal: React.FC<PengurusModalProps> = ({ isOpen, item, 
         jabatan,
         cabang,
         kontak: kontak.trim() || undefined,
-        foto: foto.trim() || fallbackPhoto
+        foto: foto.trim() || fallbackPhoto,
+        tampil,
       });
     }
     onClose();
@@ -545,6 +553,64 @@ export const PengurusFormModal: React.FC<PengurusModalProps> = ({ isOpen, item, 
                 placeholder="https://..."
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-emerald-600 outline-none"
               />
+            </div>
+          </div>
+
+          {/* Pengaturan Visibilitas Profil di Website */}
+          <div
+            onClick={() => setTampil(!tampil)}
+            className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer select-none ${
+              tampil
+                ? 'bg-emerald-50/80 border-emerald-300 hover:border-emerald-500'
+                : 'bg-slate-50 border-slate-300 hover:border-slate-400'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
+                    tampil ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-700'
+                  }`}
+                >
+                  {tampil ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-900">Visibilitas di Website:</span>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                        tampil ? 'bg-emerald-600 text-white' : 'bg-slate-600 text-white'
+                      }`}
+                    >
+                      {tampil ? '🟢 Tampil Publik' : '⚪ Disembunyikan'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
+                    {tampil
+                      ? 'Profil pengurus ini aktif dan dapat dilihat oleh pengunjung umum di halaman web.'
+                      : 'Profil disembunyikan dari pengunjung umum (admin tetap dapat melihat & mengaktifkannya kembali kapan saja).'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                role="switch"
+                aria-checked={tampil}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setTampil(!tampil);
+                }}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  tampil ? 'bg-emerald-600' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                    tampil ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
             </div>
           </div>
 

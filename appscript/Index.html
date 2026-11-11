@@ -901,7 +901,8 @@
     function renderPengurus(list) {
       const container = document.getElementById('pengurus-grid');
       if (!container) return;
-      container.innerHTML = list.map(item => `
+      const visibleList = (list || []).filter(item => item.tampil !== false);
+      container.innerHTML = visibleList.map(item => `
         <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-center hover:shadow-md transition-shadow">
           <img src="${item.foto}" alt="${item.nama}" class="w-24 h-24 rounded-full mx-auto mb-3 object-cover border-2 border-emerald-500 shadow-sm">
           <h4 class="font-extrabold text-sm text-slate-900 leading-tight">${item.nama}</h4>

@@ -109,6 +109,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     deleteProgram,
     deleteGaleri,
     deletePengurus,
+    togglePengurusVisibility,
     deleteBank,
     deletePesan,
     saveFullKonten,
@@ -1430,8 +1431,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 animate-in fade-in duration-200">
             <div className="flex items-center justify-between gap-4 mb-5 flex-wrap">
               <div>
-                <h3 className="text-lg font-black text-slate-900">👥 Susunan Pengurus Pusat & Cabang Daerah</h3>
-                <p className="text-xs text-slate-500">Total {pengurus.length} jajaran pengurus di 8 cabang dan pusat</p>
+                <h3 className="text-lg font-black text-slate-900">👥 Susunan Pengurus Pusat &amp; Cabang Daerah</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Total {pengurus.length} jajaran pengurus &bull;{' '}
+                  <span className="text-emerald-700 font-bold">
+                    {pengurus.filter((p) => p.tampil !== false).length} Tampil di web
+                  </span>{' '}
+                  &bull;{' '}
+                  <span className="text-slate-500 font-semibold">
+                    {pengurus.filter((p) => p.tampil === false).length} Disembunyikan
+                  </span>
+                </p>
               </div>
               <button
                 onClick={() => onOpenAddPengurus(adminCabangFilter !== 'Semua' ? adminCabangFilter : 'Pusat / SR Kalbar')}
@@ -1502,7 +1512,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <th className="py-3 px-4">Jabatan</th>
                     <th className="py-3 px-4">Tingkat / Wilayah</th>
                     <th className="py-3 px-4">Kontak</th>
-                    <th className="py-3 px-4 text-center w-28">Aksi</th>
+                    <th className="py-3 px-4 text-center">Status Web</th>
+                    <th className="py-3 px-4 text-center w-36">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1511,53 +1522,114 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       if (adminCabangFilter === 'Semua') return true;
                       return (p.cabang || 'Pusat / SR Kalbar') === adminCabangFilter;
                     })
-                    .map((p) => (
-                      <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3 px-4">
-                          <img
-                            src={p.foto}
-                            alt={p.nama}
-                            className="w-10 h-10 object-cover rounded-full bg-slate-100"
-                          />
-                        </td>
-                        <td className="py-3 px-4 font-bold text-slate-900">{p.nama}</td>
-                        <td className="py-3 px-4 font-semibold text-emerald-800">{p.jabatan}</td>
-                        <td className="py-3 px-4">
-                          <span className={`px-2.5 py-0.5 rounded-full font-bold text-[11px] whitespace-nowrap border ${
-                            (p.cabang || 'Pusat / SR Kalbar') === 'Pusat / SR Kalbar'
-                              ? 'bg-amber-50 text-amber-900 border-amber-300'
-                              : 'bg-emerald-50 text-emerald-800 border-emerald-100'
-                          }`}>
-                            {(p.cabang || 'Pusat / SR Kalbar') === 'Pusat / SR Kalbar' ? '🏛️ Pusat / SR Kalbar' : p.cabang}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-xs text-slate-500 whitespace-nowrap">
-                          {p.kontak || '-'}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
+                    .map((p) => {
+                      const isVisible = p.tampil !== false;
+                      return (
+                        <tr
+                          key={p.id}
+                          className={`hover:bg-slate-50/80 transition-colors ${
+                            !isVisible ? 'bg-slate-50/70 text-slate-500' : ''
+                          }`}
+                        >
+                          <td className="py-3 px-4">
+                            <div className="relative w-10 h-10">
+                              <img
+                                src={p.foto}
+                                alt={p.nama}
+                                className={`w-10 h-10 object-cover rounded-full bg-slate-100 ${
+                                  !isVisible ? 'grayscale opacity-75' : ''
+                                }`}
+                              />
+                              {!isVisible && (
+                                <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-slate-700 text-white flex items-center justify-center text-[9px]" title="Disembunyikan dari publik">
+                                  <EyeOff className="w-2.5 h-2.5" />
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className={`font-bold ${isVisible ? 'text-slate-900' : 'text-slate-600'}`}>
+                              {p.nama}
+                            </span>
+                            {!isVisible && (
+                              <span className="block text-[10px] text-amber-700 font-semibold">
+                                (Disembunyikan dari publik)
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 font-semibold text-emerald-800">{p.jabatan}</td>
+                          <td className="py-3 px-4">
+                            <span className={`px-2.5 py-0.5 rounded-full font-bold text-[11px] whitespace-nowrap border ${
+                              (p.cabang || 'Pusat / SR Kalbar') === 'Pusat / SR Kalbar'
+                                ? 'bg-amber-50 text-amber-900 border-amber-300'
+                                : 'bg-emerald-50 text-emerald-800 border-emerald-100'
+                            }`}>
+                              {(p.cabang || 'Pusat / SR Kalbar') === 'Pusat / SR Kalbar' ? '🏛️ Pusat / SR Kalbar' : p.cabang}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-xs text-slate-500 whitespace-nowrap">
+                            {p.kontak || '-'}
+                          </td>
+                          <td className="py-3 px-4 text-center">
                             <button
-                              onClick={() => onOpenEditPengurus(p)}
-                              className="p-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold"
-                              title="Edit"
+                              type="button"
+                              onClick={() => togglePengurusVisibility(p.id)}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all shadow-sm ${
+                                isVisible
+                                  ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300'
+                                  : 'bg-slate-200 text-slate-700 hover:bg-slate-300 border border-slate-300'
+                              }`}
+                              title={isVisible ? 'Klik untuk sembunyikan profil dari website publik' : 'Klik untuk menampilkan profil di website publik'}
                             >
-                              <Edit2 className="w-3.5 h-3.5" />
+                              {isVisible ? (
+                                <>
+                                  <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>Tampil</span>
+                                </>
+                              ) : (
+                                <>
+                                  <EyeOff className="w-3.5 h-3.5 text-slate-500" />
+                                  <span>Sembunyi</span>
+                                </>
+                              )}
                             </button>
-                            <button
-                              onClick={() => {
-                                if (confirm(`Hapus pengurus "${p.nama}"?`)) {
-                                  deletePengurus(p.id);
-                                }
-                              }}
-                              className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold"
-                              title="Hapus"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={() => togglePengurusVisibility(p.id)}
+                                className={`p-1.5 rounded-lg text-xs font-bold transition-colors ${
+                                  isVisible
+                                    ? 'bg-amber-50 hover:bg-amber-100 text-amber-800'
+                                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800'
+                                }`}
+                                title={isVisible ? 'Sembunyikan dari website' : 'Tampilkan di website'}
+                              >
+                                {isVisible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                              </button>
+                              <button
+                                onClick={() => onOpenEditPengurus(p)}
+                                className="p-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold"
+                                title="Edit Data Pengurus"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (confirm(`Hapus pengurus "${p.nama}"?`)) {
+                                    deletePengurus(p.id);
+                                  }
+                                }}
+                                className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold"
+                                title="Hapus"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
             </div>

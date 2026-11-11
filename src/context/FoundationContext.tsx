@@ -73,6 +73,7 @@ interface FoundationContextType {
   addPengurus: (item: Omit<PengurusItem, 'id'>) => Promise<void>;
   updatePengurus: (item: PengurusItem) => Promise<void>;
   deletePengurus: (id: number) => Promise<void>;
+  togglePengurusVisibility: (id: number) => Promise<void>;
 
   // Banks CRUD
   addBank: (item: Omit<BankAccount, 'id'>) => Promise<void>;
@@ -173,6 +174,7 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
           return parsed.pengurus.map((p: any) => ({
             ...p,
             cabang: p.cabang === 'Pusat / Wilayah Kalbar' ? 'Pusat / SR Kalbar' : (p.cabang || 'Pusat / SR Kalbar'),
+            tampil: p.tampil !== false,
           }));
         }
       }
@@ -351,6 +353,7 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
               foto: r.foto,
               cabang: r.cabang === 'Pusat / Wilayah Kalbar' ? 'Pusat / SR Kalbar' : (r.cabang || 'Pusat / SR Kalbar'),
               kontak: r.kontak || undefined,
+              tampil: r.tampil !== false,
             })));
           }
           if (!resBanks.error && resBanks.data && resBanks.data.length > 0) {
@@ -805,7 +808,8 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
   const addPengurus = async (item: Omit<PengurusItem, 'id'>) => {
     const tempItem: PengurusItem = {
       ...item,
-      id: Date.now()
+      id: Date.now(),
+      tampil: item.tampil !== false,
     };
     setPengurus((prev) => [...prev, tempItem]);
 
@@ -832,6 +836,7 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
           foto: tempItem.foto,
           cabang: tempItem.cabang,
           kontak: tempItem.kontak || '',
+          tampil: tempItem.tampil !== false,
         });
       } catch (e) {}
     }
@@ -840,13 +845,14 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
   };
 
   const updatePengurus = async (item: PengurusItem) => {
-    setPengurus((prev) => prev.map((p) => (p.id === item.id ? item : p)));
+    const sanitizedItem = { ...item, tampil: item.tampil !== false };
+    setPengurus((prev) => prev.map((p) => (p.id === item.id ? sanitizedItem : p)));
 
     try {
       const res = await fetch(`/api/pengurus/${item.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(item),
+        body: JSON.stringify(sanitizedItem),
       });
       const isJson = res.headers.get('content-type')?.includes('application/json');
       if (res.ok && isJson) {
@@ -859,16 +865,35 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
     if (supabase) {
       try {
         await supabase.from('pengurus').update({
-          nama: item.nama,
-          jabatan: item.jabatan,
-          foto: item.foto,
-          cabang: item.cabang,
-          kontak: item.kontak || '',
+          nama: sanitizedItem.nama,
+          jabatan: sanitizedItem.jabatan,
+          foto: sanitizedItem.foto,
+          cabang: sanitizedItem.cabang,
+          kontak: sanitizedItem.kontak || '',
+          tampil: sanitizedItem.tampil !== false,
         }).eq('id', item.id);
       } catch (e) {}
     }
 
     showToast('Data pengurus berhasil diperbarui!', 'success');
+  };
+
+  const togglePengurusVisibility = async (id: number) => {
+    const target = pengurus.find((p) => p.id === id);
+    if (!target) return;
+    const currentStatus = target.tampil !== false;
+    const newStatus = !currentStatus;
+    const updated: PengurusItem = {
+      ...target,
+      tampil: newStatus,
+    };
+    await updatePengurus(updated);
+    showToast(
+      newStatus
+        ? `✅ Profil "${target.nama}" sekarang TAMPIL di website.`
+        : `👁️ Profil "${target.nama}" sekarang DISEMBUNYIKAN dari website publik.`,
+      newStatus ? 'success' : 'info'
+    );
   };
 
   const deletePengurus = async (id: number) => {
@@ -1563,6 +1588,7 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
         addPengurus,
         updatePengurus,
         deletePengurus,
+        togglePengurusVisibility,
         addBank,
         updateBank,
         deleteBank,

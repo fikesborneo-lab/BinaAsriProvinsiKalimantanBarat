@@ -541,6 +541,7 @@ export async function createPengurus(item: Omit<PengurusItem, 'id'>): Promise<Pe
         foto: item.foto,
         cabang: item.cabang,
         kontak: item.kontak || '',
+        tampil: item.tampil !== false,
       });
     } catch (err) {
       console.warn('Supabase createPengurus notice:', err);
@@ -571,6 +572,7 @@ export async function updatePengurusItem(item: PengurusItem): Promise<PengurusIt
           foto: item.foto,
           cabang: item.cabang,
           kontak: item.kontak || '',
+          tampil: item.tampil !== false,
         })
         .eq('id', item.id);
     } catch (err) {

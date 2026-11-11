@@ -60,6 +60,39 @@ export const DAFTAR_CABANG_DAERAH: CabangDaerah[] = [
     keterangan: 'Pelayanan skrining TBC, investigasi kontak erat serumah, dan edukasi pencegahan stigma di 14 Puskesmas Mempawah.'
   },
   {
+    id: 'sambas',
+    nama: 'Kabupaten Sambas',
+    tipe: 'Kabupaten',
+    wilayah: 'Kabupaten Sambas',
+    alamat: 'Jl. Pembangunan No. 45, Sambas',
+    telepon: '0821-5219-1199',
+    penanggungJawab: 'Koordinator SSR Kab. Sambas',
+    jumlahBinaan: '28 Puskesmas & RSUD Sambas',
+    keterangan: 'Penjangkauan komunitas pesisir dan wilayah perbatasan di 28 Puskesmas Kabupaten Sambas.'
+  },
+  {
+    id: 'bengkayang',
+    nama: 'Kabupaten Bengkayang',
+    tipe: 'Kabupaten',
+    wilayah: 'Kabupaten Bengkayang',
+    alamat: 'Jl. Sanggau Ledo, Bengkayang',
+    telepon: '0821-5219-1199',
+    penanggungJawab: 'Koordinator SSR Kab. Bengkayang',
+    jumlahBinaan: '17 Puskesmas & RSUD Bengkayang',
+    keterangan: 'Edukasi dan penemuan aktif kasus TBC di wilayah pedalaman dan perbatasan Kabupaten Bengkayang.'
+  },
+  {
+    id: 'landak',
+    nama: 'Kabupaten Landak',
+    tipe: 'Kabupaten',
+    wilayah: 'Kabupaten Landak',
+    alamat: 'Jl. Raya Ngabang, Kabupaten Landak',
+    telepon: '0821-5219-1199',
+    penanggungJawab: 'Koordinator SSR Kab. Landak',
+    jumlahBinaan: '16 Puskesmas & RSUD Landak',
+    keterangan: 'Pendampingan kepatuhan minum obat dan investigasi kontak erat TBC di 16 Puskesmas Kabupaten Landak.'
+  },
+  {
     id: 'sanggau',
     nama: 'Kabupaten Sanggau',
     tipe: 'Kabupaten',
@@ -69,6 +102,17 @@ export const DAFTAR_CABANG_DAERAH: CabangDaerah[] = [
     penanggungJawab: 'Koordinator SSR Kab. Sanggau',
     jumlahBinaan: '8 Puskesmas & RSUD Sanggau',
     keterangan: 'Kegiatan edukasi, pemeriksaan dahak massal, dan pendampingan kepatuhan minum obat di 8 wilayah Puskesmas Sanggau.'
+  },
+  {
+    id: 'sekadau',
+    nama: 'Kabupaten Sekadau',
+    tipe: 'Kabupaten',
+    wilayah: 'Kabupaten Sekadau',
+    alamat: 'Jl. Merdeka Barat, Sekadau Hilir',
+    telepon: '0821-5219-1199',
+    penanggungJawab: 'Koordinator SSR Kab. Sekadau',
+    jumlahBinaan: '12 Puskesmas & RSUD Sekadau',
+    keterangan: 'Jejaring rujukan dan pendampingan kader komunitas penanggulangan TBC di Kabupaten Sekadau.'
   },
   {
     id: 'sintang',
@@ -82,6 +126,28 @@ export const DAFTAR_CABANG_DAERAH: CabangDaerah[] = [
     keterangan: 'Pusat rujukan dan investigasi kontak penanggulangan TBC di wilayah perhuluan Kapuas Sintang.'
   },
   {
+    id: 'melawi',
+    nama: 'Kabupaten Melawi',
+    tipe: 'Kabupaten',
+    wilayah: 'Kabupaten Melawi',
+    alamat: 'Jl. Juang No. 20, Nanga Pinoh, Melawi',
+    telepon: '0821-5219-1199',
+    penanggungJawab: 'Koordinator SSR Kab. Melawi',
+    jumlahBinaan: '11 Puskesmas & RSUD Melawi',
+    keterangan: 'Penjangkauan aktif terduga TBC dan pendampingan pasien di kawasan Nanga Pinoh dan sekitarnya.'
+  },
+  {
+    id: 'kapuas-hulu',
+    nama: 'Kabupaten Kapuas Hulu',
+    tipe: 'Kabupaten',
+    wilayah: 'Kabupaten Kapuas Hulu',
+    alamat: 'Jl. D.I. Panjaitan, Putussibau, Kapuas Hulu',
+    telepon: '0821-5219-1199',
+    penanggungJawab: 'Koordinator SSR Kab. Kapuas Hulu',
+    jumlahBinaan: '23 Puskesmas & RSUD Achmad Diponegoro',
+    keterangan: 'Pelayanan penemuan dan pendampingan TBC di wilayah jantung Kalimantan Kapuas Hulu.'
+  },
+  {
     id: 'ketapang',
     nama: 'Kabupaten Ketapang',
     tipe: 'Kabupaten',
@@ -91,6 +157,17 @@ export const DAFTAR_CABANG_DAERAH: CabangDaerah[] = [
     penanggungJawab: 'Koordinator SSR Kab. Ketapang',
     jumlahBinaan: '9 Puskesmas & RSUD Agoesdjam Ketapang',
     keterangan: 'Penyuluhan aktif, pendampingan pasien mangkir (LTFU), dan jejaring layanan TBC di 9 Puskesmas Ketapang.'
+  },
+  {
+    id: 'kayong-utara',
+    nama: 'Kabupaten Kayong Utara',
+    tipe: 'Kabupaten',
+    wilayah: 'Kabupaten Kayong Utara',
+    alamat: 'Jl. Tanah Merah, Sukadana, Kayong Utara',
+    telepon: '0821-5219-1199',
+    penanggungJawab: 'Koordinator SSR Kab. Kayong Utara',
+    jumlahBinaan: '9 Puskesmas & RSUD Sultan Muhammad Jamaludin I',
+    keterangan: 'Penguatan kader komunitas pesisir Kayong Utara dalam penemuan aktif dan pendampingan pasien TBC.'
   }
 ];
 

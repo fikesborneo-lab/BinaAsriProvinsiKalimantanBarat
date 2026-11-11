@@ -71,7 +71,7 @@ const MainApplication: React.FC = () => {
   }>({
     isOpen: false,
     item: null,
-    defaultCabang: 'Kota Pontianak'
+    defaultCabang: 'Pusat / SR Kalbar'
   });
 
   const [bankModal, setBankModal] = useState<{ isOpen: boolean; item: BankAccount | null }>({
@@ -178,7 +178,7 @@ const MainApplication: React.FC = () => {
         onOpenAddBerita={() => setBeritaModal({ isOpen: true, item: null })}
         onOpenAddProgram={() => setProgramModal({ isOpen: true, item: null })}
         onOpenAddGaleri={() => setGaleriModalOpen(true)}
-        onOpenAddPengurus={() => setPengurusModal({ isOpen: true, item: null })}
+        onOpenAddPengurus={() => setPengurusModal({ isOpen: true, item: null, defaultCabang: 'Pusat / SR Kalbar' })}
         onOpenAddBank={() => setBankModal({ isOpen: true, item: null })}
         onOpenAiBerita={() => setAiBeritaOpen(true)}
         onOpenDeployGuide={() => setDeployGuideOpen(true)}

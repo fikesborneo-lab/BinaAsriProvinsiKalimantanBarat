@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useFoundation } from '../../context/FoundationContext';
 import { BeritaItem, ProgramItem, PengurusItem, BankAccount, KontenWeb } from '../../types';
+import { DAFTAR_CABANG_DAERAH } from '../../data/defaultData';
 import { X, Save } from 'lucide-react';
 
 /* =========================================================================
@@ -390,7 +391,7 @@ export const PengurusFormModal: React.FC<PengurusModalProps> = ({ isOpen, item, 
   const { addPengurus, updatePengurus } = useFoundation();
   const [nama, setNama] = useState('');
   const [jabatan, setJabatan] = useState('');
-  const [cabang, setCabang] = useState('Pusat / Wilayah Kalbar');
+  const [cabang, setCabang] = useState('Pusat / SR Kalbar');
   const [kontak, setKontak] = useState('');
   const [foto, setFoto] = useState('');
 
@@ -398,13 +399,14 @@ export const PengurusFormModal: React.FC<PengurusModalProps> = ({ isOpen, item, 
     if (item) {
       setNama(item.nama || '');
       setJabatan(item.jabatan || '');
-      setCabang(item.cabang || 'Pusat / Wilayah Kalbar');
+      const currentCabang = item.cabang === 'Pusat / Wilayah Kalbar' ? 'Pusat / SR Kalbar' : (item.cabang || 'Pusat / SR Kalbar');
+      setCabang(currentCabang);
       setKontak(item.kontak || '');
       setFoto(item.foto || '');
     } else {
       setNama('');
       setJabatan('');
-      setCabang(defaultCabang || 'Kota Pontianak');
+      setCabang(defaultCabang || 'Pusat / SR Kalbar');
       setKontak('');
       setFoto('');
     }
@@ -436,9 +438,12 @@ export const PengurusFormModal: React.FC<PengurusModalProps> = ({ isOpen, item, 
     onClose();
   };
 
+  const daerahList = DAFTAR_CABANG_DAERAH.filter((c) => c.tipe !== 'Pusat');
+  const isCustomCabang = cabang && !DAFTAR_CABANG_DAERAH.some((c) => c.nama === cabang);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-      <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 sm:p-8 relative animate-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 sm:p-8 relative animate-in zoom-in-95 duration-200">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center"
@@ -446,68 +451,93 @@ export const PengurusFormModal: React.FC<PengurusModalProps> = ({ isOpen, item, 
           <X className="w-4 h-4" />
         </button>
 
-        <h3 className="text-xl font-black text-emerald-950 mb-5">
-          {item ? '✏️ Edit Data Pengurus' : '👥 Tambah Pengurus Yayasan'}
-        </h3>
+        <div className="mb-5 pr-8">
+          <span className="text-[11px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">
+            Manajemen Struktur Organisasi
+          </span>
+          <h3 className="text-xl font-black text-emerald-950 mt-1">
+            {item ? '✏️ Edit Data Pengurus' : '👥 Tambah Pengurus Yayasan'}
+          </h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Kelola data dewan pembina/pengurus pusat SR Kalbar atau koordinator pelaksana cabang daerah SSR.
+          </p>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Nama Lengkap & Gelar *</label>
+            <label className="block text-xs font-bold text-slate-800 mb-1">Nama Lengkap & Gelar *</label>
             <input
               type="text"
               required
               value={nama}
               onChange={(e) => setNama(e.target.value)}
-              placeholder="Contoh: Bapak H. Ahmad Fauzi, S.Pd."
+              placeholder="Contoh: Dr. Drs. H. Mardjan, M.Kes / Nama Pengurus"
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-emerald-600 outline-none"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Jabatan *</label>
-              <input
-                type="text"
-                required
-                value={jabatan}
-                onChange={(e) => setJabatan(e.target.value)}
-                placeholder="Contoh: Ketua Cabang"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-emerald-600 outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Cabang Daerah *</label>
-              <select
-                value={cabang}
-                onChange={(e) => setCabang(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-emerald-600 outline-none font-medium"
-              >
-                <option value="Pusat / Wilayah Kalbar">Pusat / Wilayah Kalbar</option>
-                <option value="Kota Pontianak">Kota Pontianak</option>
-                <option value="Kabupaten Kubu Raya">Kabupaten Kubu Raya</option>
-                <option value="Kabupaten Mempawah">Kabupaten Mempawah</option>
-                <option value="Kabupaten Sanggau">Kabupaten Sanggau</option>
-                <option value="Kabupaten Sintang">Kabupaten Sintang</option>
-                <option value="Kabupaten Ketapang">Kabupaten Ketapang</option>
-                <option value="Kota Singkawang">Kota Singkawang</option>
-                <option value="Kabupaten Sambas">Kabupaten Sambas</option>
-              </select>
+          <div>
+            <label className="block text-xs font-bold text-slate-800 mb-1">Jabatan / Amanah Tugas *</label>
+            <input
+              type="text"
+              required
+              value={jabatan}
+              onChange={(e) => setJabatan(e.target.value)}
+              placeholder="Contoh: Ketua Dewan Pengurus / Koordinator Program SR / Koordinator SSR"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-emerald-600 outline-none"
+            />
+          </div>
+
+          {/* Tingkat & Wilayah Kerja - Clear separation to avoid overlapping */}
+          <div>
+            <label className="block text-xs font-bold text-slate-800 mb-1 flex items-center justify-between">
+              <span>Tingkat Kepengurusan & Wilayah Kerja *</span>
+              <span className="text-[11px] font-semibold text-emerald-700">Tidak Tumpang Tindih</span>
+            </label>
+            <select
+              value={cabang}
+              onChange={(e) => setCabang(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl border-2 border-emerald-600/40 focus:border-emerald-600 text-sm outline-none font-bold text-slate-900 bg-white shadow-sm"
+            >
+              <optgroup label="🏛️ KANTOR INDUK / TINGKAT WILAYAH (SR KALBAR)">
+                <option value="Pusat / SR Kalbar">
+                  Pusat / SR Kalbar (Dewan Pembina, Pengurus Pusat & Tim SR)
+                </option>
+              </optgroup>
+              <optgroup label="📍 JARINGAN CABANG DAERAH KABUPATEN / KOTA (SSR)">
+                {daerahList.map((d) => (
+                  <option key={d.id} value={d.nama}>
+                    {d.nama} (Pelaksana SSR)
+                  </option>
+                ))}
+              </optgroup>
+              {isCustomCabang && (
+                <optgroup label="Wilayah Lainnya">
+                  <option value={cabang}>{cabang}</option>
+                </optgroup>
+              )}
+            </select>
+            <div className="mt-1.5 p-2 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] text-slate-600 leading-relaxed flex items-start gap-2">
+              <span className="text-emerald-700 font-extrabold text-xs shrink-0">ℹ️</span>
+              <span>
+                <strong>Pusat / SR Kalbar</strong> ditujukan untuk Dewan Pengurus Pusat & Pengelola Program SR Kalimantan Barat. Untuk tim kerja daerah, pilih cabang <strong>Kabupaten / Kota</strong> masing-masing.
+              </span>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Kontak / HP (Opsional)</label>
+              <label className="block text-xs font-bold text-slate-800 mb-1">Kontak / HP (Opsional)</label>
               <input
                 type="text"
                 value={kontak}
                 onChange={(e) => setKontak(e.target.value)}
-                placeholder="0813-xxxx-xxxx"
+                placeholder="0821-xxxx-xxxx"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-emerald-600 outline-none"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">URL Foto (Opsional)</label>
+              <label className="block text-xs font-bold text-slate-800 mb-1">URL Foto (Opsional)</label>
               <input
                 type="url"
                 value={foto}
@@ -520,10 +550,10 @@ export const PengurusFormModal: React.FC<PengurusModalProps> = ({ isOpen, item, 
 
           <button
             type="submit"
-            className="w-full py-3 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold text-sm shadow flex items-center justify-center gap-2 mt-2"
+            className="w-full py-3 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold text-sm shadow flex items-center justify-center gap-2 mt-4 transition-all hover:shadow-md"
           >
             <Save className="w-4 h-4" />
-            <span>Simpan Pengurus</span>
+            <span>Simpan Data Pengurus</span>
           </button>
         </form>
       </div>

@@ -68,29 +68,29 @@ export const PengurusSection: React.FC<PengurusSectionProps> = ({
                 <span>Edit Judul Pengurus</span>
               </button>
               <button
-                onClick={() => onOpenAddPengurus(selectedCabang !== 'Semua' ? selectedCabang : 'Kota Pontianak')}
+                onClick={() => onOpenAddPengurus(selectedCabang !== 'Semua' ? selectedCabang : 'Pusat / SR Kalbar')}
                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-all"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Tambah Pengurus {selectedCabang !== 'Semua' ? `(${selectedCabang})` : ''}</span>
+                <span>Tambah Pengurus {selectedCabang !== 'Semua' ? `(${selectedCabang})` : '(Pusat / SR Kalbar)'}</span>
               </button>
             </div>
           )}
         </div>
 
-        {/* Cabang Daerah Filter Tabs */}
+        {/* Tingkat & Cabang Daerah Filter Tabs */}
         <div className="mb-8 bg-slate-100/70 p-4 sm:p-5 rounded-2xl border border-slate-200">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3.5 px-1">
             <span className="text-xs sm:text-sm font-black text-emerald-950 uppercase tracking-wider flex items-center gap-2">
               <Building2 className="w-4 h-4 text-emerald-700" />
-              <span>Pilih Cabang Daerah:</span>
+              <span>Tingkat Kepengurusan &amp; Wilayah:</span>
             </span>
             <span className="text-xs text-emerald-800 font-bold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
-              8 Cabang Kabupaten & Kota se-Kalbar + Pengurus Pusat
+              Kantor Induk SR Kalbar + 14 Cabang Daerah (SSR)
             </span>
           </div>
 
-          {/* Full Wrap Button Grid: All buttons are completely visible */}
+          {/* Full Wrap Button Grid: Clear Separation between Pusat SR & Cabang SSR */}
           <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
             <button
               onClick={() => setSelectedCabang('Semua')}
@@ -108,8 +108,38 @@ export const PengurusSection: React.FC<PengurusSectionProps> = ({
               </span>
             </button>
 
-            {DAFTAR_CABANG_DAERAH.map((c) => {
+            {/* Distinct Button for Pusat / SR Kalbar (Induk) */}
+            {DAFTAR_CABANG_DAERAH.filter((c) => c.tipe === 'Pusat').map((c) => {
               const count = pengurus.filter((p) => (p.cabang || 'Pusat / SR Kalbar') === c.nama).length;
+              const isSelected = selectedCabang === c.nama;
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => setSelectedCabang(c.nama)}
+                  className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-all shadow-sm flex items-center gap-2 border ${
+                    isSelected
+                      ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md ring-2 ring-amber-400/70'
+                      : 'bg-gradient-to-r from-amber-50 to-emerald-50 text-emerald-950 hover:from-amber-100 hover:to-emerald-100 border-amber-300/80'
+                  }`}
+                  title="Dewan Pembina, Pengurus Pusat & Tim SR Kalbar"
+                >
+                  <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
+                  <span>{c.nama} (Induk SR)</span>
+                  <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-extrabold ${
+                    isSelected ? 'bg-slate-950 text-amber-300' : 'bg-amber-200/70 text-slate-900'
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+
+            {/* Visual Divider */}
+            <div className="hidden sm:block h-6 w-px bg-slate-300 mx-1"></div>
+
+            {/* 14 SSR Cabang Daerah Buttons */}
+            {DAFTAR_CABANG_DAERAH.filter((c) => c.tipe !== 'Pusat').map((c) => {
+              const count = pengurus.filter((p) => p.cabang === c.nama).length;
               const isSelected = selectedCabang === c.nama;
               return (
                 <button
@@ -135,11 +165,19 @@ export const PengurusSection: React.FC<PengurusSectionProps> = ({
 
         {/* Selected Branch Detail Info Banner (if a specific branch is chosen) */}
         {activeCabangInfo && (
-          <div className="bg-gradient-to-r from-emerald-900 to-emerald-950 text-white rounded-2xl p-5 sm:p-6 mb-8 shadow-md border border-emerald-800/60 animate-in fade-in duration-300">
+          <div className="bg-gradient-to-r from-emerald-900 via-emerald-950 to-teal-950 text-white rounded-2xl p-5 sm:p-6 mb-8 shadow-md border border-emerald-800/60 animate-in fade-in duration-300">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-1.5">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black text-[11px] uppercase tracking-wide">
-                  <span>Kantor Cabang Resmi</span>
+                <div className={`inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full font-black text-[11px] uppercase tracking-wider ${
+                  activeCabangInfo.tipe === 'Pusat'
+                    ? 'bg-amber-400 text-slate-950'
+                    : 'bg-emerald-700 text-white border border-emerald-500/50'
+                }`}>
+                  <span>
+                    {activeCabangInfo.tipe === 'Pusat'
+                      ? '🏛️ KANTOR INDUK SUB-RECIPIENT (SR) KALBAR'
+                      : '📍 KANTOR CABANG PELAKSANA (SSR)'}
+                  </span>
                 </div>
                 <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
                   Yayasan Bina Asri — {activeCabangInfo.nama}
@@ -176,8 +214,12 @@ export const PengurusSection: React.FC<PengurusSectionProps> = ({
                 className="bg-white rounded-2xl p-6 text-center border border-slate-200/90 shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all flex flex-col items-center group relative overflow-hidden"
               >
                 {/* Branch Badge on top */}
-                <span className="absolute top-3.5 right-3.5 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-100">
-                  {item.cabang || 'Pusat'}
+                <span className={`absolute top-3.5 right-3.5 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border ${
+                  (item.cabang || 'Pusat / SR Kalbar') === 'Pusat / SR Kalbar'
+                    ? 'bg-amber-50 text-amber-900 border-amber-300'
+                    : 'bg-emerald-50 text-emerald-800 border-emerald-100'
+                }`}>
+                  {(item.cabang || 'Pusat / SR Kalbar') === 'Pusat / SR Kalbar' ? 'Pusat (SR)' : item.cabang}
                 </span>
 
                 {/* Avatar with gradient border */}

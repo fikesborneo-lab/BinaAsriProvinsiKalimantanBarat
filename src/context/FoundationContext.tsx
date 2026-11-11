@@ -169,7 +169,12 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed.pengurus) && parsed.pengurus.length > 5) return parsed.pengurus;
+        if (Array.isArray(parsed.pengurus) && parsed.pengurus.length > 5) {
+          return parsed.pengurus.map((p: any) => ({
+            ...p,
+            cabang: p.cabang === 'Pusat / Wilayah Kalbar' ? 'Pusat / SR Kalbar' : (p.cabang || 'Pusat / SR Kalbar'),
+          }));
+        }
       }
     } catch (e) {}
     return DEFAULT_PENGURUS;
@@ -344,7 +349,7 @@ export const FoundationProvider: React.FC<{ children: ReactNode }> = ({ children
               nama: r.nama,
               jabatan: r.jabatan,
               foto: r.foto,
-              cabang: r.cabang,
+              cabang: r.cabang === 'Pusat / Wilayah Kalbar' ? 'Pusat / SR Kalbar' : (r.cabang || 'Pusat / SR Kalbar'),
               kontak: r.kontak || undefined,
             })));
           }

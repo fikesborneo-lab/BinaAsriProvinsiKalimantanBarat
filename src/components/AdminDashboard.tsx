@@ -1434,14 +1434,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <p className="text-xs text-slate-500">Total {pengurus.length} jajaran pengurus di 8 cabang dan pusat</p>
               </div>
               <button
-                onClick={() => onOpenAddPengurus(adminCabangFilter !== 'Semua' ? adminCabangFilter : 'Kota Pontianak')}
+                onClick={() => onOpenAddPengurus(adminCabangFilter !== 'Semua' ? adminCabangFilter : 'Pusat / SR Kalbar')}
                 className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 shadow"
               >
-                <Plus className="w-4 h-4" /> Tambah Pengurus {adminCabangFilter !== 'Semua' ? `(${adminCabangFilter})` : ''}
+                <Plus className="w-4 h-4" /> Tambah Pengurus {adminCabangFilter !== 'Semua' ? `(${adminCabangFilter})` : '(Pusat / SR Kalbar)'}
               </button>
             </div>
 
-            {/* Filter Cabang in Admin */}
+            {/* Filter Tingkat & Cabang in Admin */}
             <div className="flex flex-wrap items-center gap-2 pb-3 mb-4 border-b border-slate-100">
               <button
                 onClick={() => setAdminCabangFilter('Semua')}
@@ -1453,8 +1453,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               >
                 Semua Wilayah ({pengurus.length})
               </button>
-              {DAFTAR_CABANG_DAERAH.map((c) => {
+
+              {/* Distinct Button for Pusat / SR Kalbar */}
+              {DAFTAR_CABANG_DAERAH.filter((c) => c.tipe === 'Pusat').map((c) => {
                 const count = pengurus.filter((p) => (p.cabang || 'Pusat / SR Kalbar') === c.nama).length;
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => setAdminCabangFilter(c.nama)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black whitespace-nowrap transition-all border ${
+                      adminCabangFilter === c.nama
+                        ? 'bg-amber-500 text-slate-950 border-amber-400 shadow'
+                        : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
+                    }`}
+                  >
+                    👑 {c.nama} ({count})
+                  </button>
+                );
+              })}
+
+              <span className="h-4 w-px bg-slate-300 hidden sm:inline-block"></span>
+
+              {/* 14 SSR Cabang Daerah */}
+              {DAFTAR_CABANG_DAERAH.filter((c) => c.tipe !== 'Pusat').map((c) => {
+                const count = pengurus.filter((p) => p.cabang === c.nama).length;
                 return (
                   <button
                     key={c.id}
@@ -1476,9 +1498,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <thead>
                   <tr className="border-b-2 border-slate-200 bg-slate-50 text-slate-600">
                     <th className="py-3 px-4 w-14">Foto</th>
-                    <th className="py-3 px-4">Nama Lengkap & Gelar</th>
+                    <th className="py-3 px-4">Nama Lengkap &amp; Gelar</th>
                     <th className="py-3 px-4">Jabatan</th>
-                    <th className="py-3 px-4">Cabang Daerah</th>
+                    <th className="py-3 px-4">Tingkat / Wilayah</th>
                     <th className="py-3 px-4">Kontak</th>
                     <th className="py-3 px-4 text-center w-28">Aksi</th>
                   </tr>
@@ -1501,8 +1523,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <td className="py-3 px-4 font-bold text-slate-900">{p.nama}</td>
                         <td className="py-3 px-4 font-semibold text-emerald-800">{p.jabatan}</td>
                         <td className="py-3 px-4">
-                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 font-bold text-[11px] border border-emerald-100 whitespace-nowrap">
-                            {p.cabang || 'Pusat / Wilayah Kalbar'}
+                          <span className={`px-2.5 py-0.5 rounded-full font-bold text-[11px] whitespace-nowrap border ${
+                            (p.cabang || 'Pusat / SR Kalbar') === 'Pusat / SR Kalbar'
+                              ? 'bg-amber-50 text-amber-900 border-amber-300'
+                              : 'bg-emerald-50 text-emerald-800 border-emerald-100'
+                          }`}>
+                            {(p.cabang || 'Pusat / SR Kalbar') === 'Pusat / SR Kalbar' ? '🏛️ Pusat / SR Kalbar' : p.cabang}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-xs text-slate-500 whitespace-nowrap">
